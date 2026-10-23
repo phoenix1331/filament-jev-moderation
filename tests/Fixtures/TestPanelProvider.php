@@ -16,6 +16,8 @@ class TestPanelProvider extends PanelProvider
             ->default()
             ->id('admin')
             ->path('admin')
+            ->pages([AuthorisedPage::class])
+            ->widgets([AuthorisedWidget::class])
             ->plugin(JevModerationPlugin::make());
     }
 }

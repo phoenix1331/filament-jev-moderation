@@ -10,14 +10,18 @@ use Filament\Contracts\Plugin;
 use Filament\Facades\Filament;
 use Filament\Panel;
 use Filament\Support\Concerns\EvaluatesClosures;
+use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\Relation;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
 use LogicException;
+use Phoenix1331\FilamentJevModeration\Enums\ReviewAction;
 use Phoenix1331\JevModeration\Concerns\Moderatable;
+use Phoenix1331\JevModeration\Models\ModerationDecision;
 use UnitEnum;
 
 class JevModerationPlugin implements Plugin
@@ -34,6 +38,10 @@ class JevModerationPlugin implements Plugin
 
     /** The author relation the core's moderationAuthor() reads by default. */
     public const string DEFAULT_AUTHOR_RELATION = 'user';
+
+    protected bool|Closure|null $authorizeUsing = null;
+
+    protected ?Closure $authorizeActionsUsing = null;
 
     protected string|UnitEnum|Closure|null $navigationGroup = null;
 
@@ -83,9 +91,92 @@ class JevModerationPlugin implements Plugin
         return static::get();
     }
 
+    /**
+     * Whether the signed-in user may see moderation pages and widgets on the
+     * current panel. Without the plugin there is no callback, so the default
+     * rule applies.
+     */
+    public static function allows(): bool
+    {
+        return static::current()?->isAuthorized() ?? self::defaultAuthorization();
+    }
+
     public function getId(): string
     {
         return self::ID;
+    }
+
+    /**
+     * Who may use the moderation pages and widgets. The closure can take
+     * `$user` (the panel's signed-in user, or null) and must return true to
+     * allow access; any other value denies. Without this, access is allowed
+     * only in the local environment.
+     */
+    public function authorize(bool|Closure $condition): static
+    {
+        $this->authorizeUsing = $condition;
+
+        return $this;
+    }
+
+    public function isAuthorized(?Authenticatable $user = null): bool
+    {
+        if ($this->authorizeUsing === null) {
+            return self::defaultAuthorization();
+        }
+
+        $user ??= Filament::auth()->user();
+
+        return $this->evaluate(
+            $this->authorizeUsing,
+            namedInjections: ['user' => $user],
+            typedInjections: $user === null ? [] : [Authenticatable::class => $user, $user::class => $user],
+        ) === true;
+    }
+
+    /**
+     * Who may approve, reject or reclassify, on top of authorize(). The
+     * closure can take `$action` (ReviewAction), `$decision` (the queued
+     * ModerationDecision, or null for the action as a whole) and `$user`,
+     * and must return true to allow it.
+     *
+     * Without this, a registered ModerationDecision policy decides through
+     * the Gate (abilities `approve`, `reject`, `reclassify`; a policy without
+     * the method denies), so Filament Shield and hand-written policies work.
+     * With neither, anyone allowed by authorize() may review.
+     */
+    public function authorizeActionsUsing(?Closure $callback): static
+    {
+        $this->authorizeActionsUsing = $callback;
+
+        return $this;
+    }
+
+    public function canReview(ReviewAction $action, ?ModerationDecision $decision = null, ?Authenticatable $user = null): bool
+    {
+        $user ??= Filament::auth()->user();
+
+        if (! $this->isAuthorized($user)) {
+            return false;
+        }
+
+        if ($this->authorizeActionsUsing !== null) {
+            return $this->evaluate(
+                $this->authorizeActionsUsing,
+                namedInjections: ['action' => $action, 'decision' => $decision, 'user' => $user],
+                typedInjections: [
+                    ReviewAction::class => $action,
+                    ...($decision === null ? [] : [ModerationDecision::class => $decision]),
+                    ...($user === null ? [] : [Authenticatable::class => $user, $user::class => $user]),
+                ],
+            ) === true;
+        }
+
+        if (Gate::getPolicyFor(ModerationDecision::class) === null) {
+            return true;
+        }
+
+        return $user !== null && Gate::forUser($user)->allows($action->value, $decision ?? ModerationDecision::class);
     }
 
     /**
@@ -362,6 +453,15 @@ class JevModerationPlugin implements Plugin
     public function boot(Panel $panel): void
     {
         // Runs on every request the panel serves; keep it cheap.
+    }
+
+    /**
+     * Deny outside local, as Horizon and Pulse do, so moderation tools and
+     * the content they show are never accidentally public.
+     */
+    private static function defaultAuthorization(): bool
+    {
+        return app()->environment('local');
     }
 
     /**

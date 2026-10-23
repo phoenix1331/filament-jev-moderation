@@ -8,7 +8,7 @@ This is a Composer **package**, not a Laravel app. There is no `app/`, no Docker
 
 | Package | Role |
 |---|---|
-| `phoenix1331/laravel-jev-moderation` (`../laravel-jev-moderation`, Packagist 0.1.0) | Headless core: `Moderatable` trait, `#[Moderate]`, Jev and fake drivers, policies and thresholds, append-only `moderation_decisions`, review API, `rescan` and `stats` commands |
+| `phoenix1331/laravel-jev-moderation` (`../laravel-jev-moderation`, Packagist 0.2.0) | Headless core: `Moderatable` trait, `#[Moderate]`, Jev and fake drivers, policies and thresholds, append-only `moderation_decisions`, review API, `rescan` and `stats` commands |
 | `phoenix1331/filament-jev-moderation` | **This package.** Filament resource, pages and widgets over the core's decisions |
 | `phoenix1331/filament-headroom` (`../filament-headroom`) | Pattern source: same headless-core-then-plugin split, plugin options, authorisation concerns, workbench, screenshots |
 
@@ -29,21 +29,22 @@ Detail lives in the core's `CONTEXT.md`; these shape every query here.
 
 ## Architecture at a glance
 
-Built so far: service provider, stylesheet, plugin class and its options. The rest is the target layout from the brief.
+Built so far: service provider, stylesheet, plugin class, its options and authorisation. The rest is the target layout from the brief.
 
 | Path | Role |
 |---|---|
 | `src/FilamentJevModerationServiceProvider.php` | Auto-discovered provider: translations and views under `filament-jev-moderation`, publish tag `filament-jev-moderation-translations`, stylesheet via `FilamentAsset` |
-| `src/JevModerationPlugin.php` | Filament plugin (ID `jev-moderation`): `make()`, `get()`, `current()` (null on a panel without it); options `navigationGroup()` (default `navigation.group`, `hasNavigationGroup` so null means ungrouped), `navigationIcon()`, `navigationSort()`, `models()` (null = every type with decisions), `includeBlocked()`, `modelLabels()` (default: class basename in sentence case), `authorRelation()` / `authorRelations()` (`getAuthorRelation($type)` returns a `BelongsTo` or null), `overrideWarningRate()` (0.3), `minimumSample()` (10). Setters validate plain values; getters evaluate closures and narrow the result, throwing `InvalidArgumentException` naming the type given; morph aliases resolve through `Relation::getMorphedModel()` |
+| `src/JevModerationPlugin.php` | Filament plugin (ID `jev-moderation`): `make()`, `get()`, `current()` (null on a panel without it), static `allows()`; `authorize()` / `isAuthorized()`, `authorizeActionsUsing()` / `canReview(ReviewAction, ?decision, ?user)`; options `navigationGroup()` (default `navigation.group`, `hasNavigationGroup` so null means ungrouped), `navigationIcon()`, `navigationSort()`, `models()` (null = every type with decisions), `includeBlocked()`, `modelLabels()` (default: class basename in sentence case), `authorRelation()` / `authorRelations()` (`getAuthorRelation($type)` returns a `BelongsTo` or null), `overrideWarningRate()` (0.3), `minimumSample()` (10). Setters validate plain values; getters evaluate closures and narrow the result, throwing `InvalidArgumentException` naming the type given; morph aliases resolve through `Relation::getMorphedModel()` |
 | `resources/dist/filament-jev-moderation.css` | `fi-jev-moderation-*` styles on Filament's colour variables, one sheet for 4 and 5 |
 | `resources/lang/en/` | Every user-facing string |
 | `src/Resources/` (planned) | Review queue resource over `ModerationDecision`: list page, row and bulk actions |
 | `src/Pages/` (planned) | Decision detail, author history, thresholds viewer |
 | `src/Widgets/` (planned) | Overview stats, volume chart, calibration |
 | `src/Queries/`, `src/Calibration/` (planned, `@internal`) | Latest-decision query, calibration maths |
-| `src/Concerns/` (planned) | Page and widget authorisation, navigation from plugin options |
+| `src/Concerns/AuthorisesPageAccess.php`, `AuthorisesWidgetView.php` | `canAccess()` / `canView()` from `JevModerationPlugin::allows()`; the widget concern also aborts 403 on mount and every hydrate |
+| `src/Enums/ReviewAction.php` | `approve`, `reject`, `reclassify`: the actions and the Gate abilities checked on a `ModerationDecision` policy |
 | `workbench/` | Testbench app: `AdminPanelProvider` with the plugin; `ForumPost` (`community`, author `user`) and `ChatMessage` (`chat`, author `sender`) with `#[Moderate]`, their migrations and factories (`about($category)` picks matching synthetic content); `DatabaseSeeder` writes 90 days of history through the core's `ModerationDecisionFactory`; `Support/DemoRandom` seeded randomness; `WorkbenchServiceProvider` sets the fake driver, `sync` and `post` mode |
-| `tests/` | Pest + Testbench + `pest-plugin-livewire`; `tests/Fixtures/TestPanelProvider.php` is the default `admin` panel; `tests/Arch/` enforces strict types and no debug calls |
+| `tests/` | Pest + Testbench + `pest-plugin-livewire`; `tests/Fixtures/TestPanelProvider.php` is the default `admin` panel with fixture `AuthorisedPage` and `AuthorisedWidget`; `tests/Fixtures/DecisionPolicy.php` stands in for a Shield policy; `tests/Arch/` enforces strict types and no debug calls |
 | `.github/scripts/` | `check-archive.sh` (dist contents), `check-actions-pinned.sh` (SHA pins) |
 
 ## Decisions
@@ -54,13 +55,16 @@ Built so far: service provider, stylesheet, plugin class and its options. The re
 | Review queue = flagged (optionally blocked) rows with no newer row for the same record (`NOT EXISTS`), restricted to live records via `whereHasMorph(..., withoutModeration())` | Starts from the `status, created_at` index; comparisons stay in SQL so stringified fetches cannot break them; the core's visibility scope would otherwise hide every queued record in `pre` mode (verified) |
 | Moderated records are loaded with `MorphTo::constrain([Type => withoutModeration()])`, never plain `with('moderatable')` | Removes only the core's visibility scope and keeps host scopes such as `SoftDeletes` |
 | Approve and reject check the record's latest decision id first and skip with a notice if it moved | The core does not check current status; two moderators would otherwise append two reviews |
-| Reclassify = core `reject($moderator, $note, $category)` (core 0.2.0) | One outcome (removal) with a corrected category; the core validates the category against the record's policy |
+| Reclassify = core `reject($moderator, $note, $category)` (core 0.2.0, released) | One outcome (removal) with a corrected category; the core validates the category against the record's policy |
 | Author history through each model's author relation (`BelongsTo`, default `user`, overridable per model), not core author columns | Matches the core's `moderationAuthor()` default, works on existing decisions, no schema change; revisit core columns if per-type subqueries get slow |
 | Calibration pairs each human row with the latest earlier `jev`/`rescan` result; latest human row per Jev row counts; Jev passed then rejected = missed (separate); low-confidence flags banded by `meta.jev_confidence`; bands `[lower, upper)` in 0.1 steps; grouped by Jev `model` version, latest by default | Like-for-like with thresholds (core decision 1), version per core decision 3; only content over a threshold is reviewed, so suggestions are one-sided |
 | Overview override rate uses the core `stats` definition exactly | The panel and CLI must agree |
 | Seed history with the core's `ModerationDecisionFactory`, not `FakeDriver` | Exact confidences and back-dated timestamps; `classifyAs()` stores the category probability, not the given confidence |
 | `src/` never uses `Workbench\App`, `Workbench\Database` or the tests namespace (arch test) | The plugin works with any moderated model; the workbench models exist only to demo and test two different shapes. A bare `Workbench` prefix does not match in Pest's `toUse()`, so the real namespaces are named |
 | Author relations must be `BelongsTo`, checked in the setter | Author history queries the foreign key; a mistake fails at panel boot, not on the page |
+| Access fails closed: `authorize()` must return exactly `true`; unset allows `local` only (as Horizon and Pulse) | Moderation shows other people's content, sometimes removed content; it must never be public by accident (brief: deny in production unless configured) |
+| Review actions: plugin access, then `authorizeActionsUsing()` if set, else a registered `ModerationDecision` policy through the Gate (missing method denies, signed-out denies), else allowed | Works with Filament Shield or a hand-written policy without depending on Shield; apps with neither need no setup. The Gate gets the class name for an action as a whole, so policy methods take an optional decision |
+| Test fixture widget extends `StatsOverviewWidget` | Larastan types `Widget::$view` as `view-string` and cannot see a test-only view namespace; the stats widget ships its own view |
 | Slug `filament-jev-moderation`, plugin ID `jev-moderation` | The core owns `jev-moderation` for config, publish tags and commands |
 | Support Filament 4 and 5, not 3 | User's choice. 4 and 5 share `Filament\Schemas` and `Filament\Actions`, so there is no `Compat/` layer and no `FilamentVersion` helper. Filament 3 could only run on Laravel 12 (security fixes only, ending early 2027) and would need its own schema, infolist and action classes. Action and form construction stays in one place so 3 could be added later |
 | Testbench workbench, not the brief's `test-app/` | House pattern (as filament-headroom); `/1331-test-app` remains for a real-app check |
@@ -82,7 +86,7 @@ Built so far: service provider, stylesheet, plugin class and its options. The re
 |---|---|---|
 | `php` | `^8.3` | `phoenix1331/laravel-jev-moderation` floor (Filament 4 and 5 allow 8.2) |
 | `filament/filament` | `^4.0\|^5.0` | Both majors allow Laravel 12 and 13 at their latest releases (4.15.3, 5.10.3); 4.0.0 and 5.0.0 stop at Laravel 12, so prefer-lowest on Laravel 13 resolves a later release |
-| `phoenix1331/laravel-jev-moderation` | `^0.1` | The core: decisions table, `Moderatable` trait and its review API |
+| `phoenix1331/laravel-jev-moderation` | `^0.2` | The core: decisions table, `Moderatable` trait and its review API. 0.2.0 adds `reject($moderator, $note, $category)` (Reclassify) and `stats` pairing each review with Jev's decision (upheld, overturned, missed, dismissed, unchecked), which the overview widget mirrors |
 | `illuminate/*` | `^12.0\|^13.0` | Core package range |
 | `orchestra/testbench` (dev) | `^10.6\|^11.3` | Laravel 12 and 13 |
 | `pestphp/pest` (dev) | `^4.3\|^5.3` | Pest 5 needs PHP 8.4 and Laravel 13, so v4 covers the PHP 8.3 cells; 4.3 is the livewire plugin's floor |

@@ -21,6 +21,11 @@ abstract class TestCase extends Orchestra
         Http::preventStrayRequests();
     }
 
+    protected function defineEnvironment($app): void
+    {
+        $app->make('view')->addNamespace('fixtures', __DIR__.'/Fixtures/views');
+    }
+
     protected function getPackageProviders($app): array
     {
         return [
