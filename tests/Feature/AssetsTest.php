@@ -28,5 +28,5 @@ it('styles only its own fi-jev-moderation classes', function (): void {
 });
 
 it('loads its translations', function (): void {
-    expect(__('filament-jev-moderation::navigation.group'))->toBe('Jev Moderation for Filament');
+    expect(__('filament-jev-moderation::navigation.group'))->toBe('Moderation');
 });

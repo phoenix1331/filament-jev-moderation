@@ -13,3 +13,8 @@ arch('every file declares strict types')
 arch('php best practices')->preset()->php();
 
 arch('no insecure functions')->preset()->security();
+
+arch('the plugin works with any moderated model, never the demo or test ones')
+    ->expect('Phoenix1331\FilamentJevModeration')
+    ->not->toUse(['Workbench\App', 'Workbench\Database', 'Phoenix1331\FilamentJevModeration\Tests'])
+    ->ignoring('Phoenix1331\FilamentJevModeration\Tests');

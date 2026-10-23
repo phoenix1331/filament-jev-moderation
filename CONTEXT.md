@@ -29,12 +29,12 @@ Detail lives in the core's `CONTEXT.md`; these shape every query here.
 
 ## Architecture at a glance
 
-Built so far: service provider, plugin class and stylesheet from the skeleton. The rest is the target layout from the brief.
+Built so far: service provider, stylesheet, plugin class and its options. The rest is the target layout from the brief.
 
 | Path | Role |
 |---|---|
 | `src/FilamentJevModerationServiceProvider.php` | Auto-discovered provider: translations and views under `filament-jev-moderation`, publish tag `filament-jev-moderation-translations`, stylesheet via `FilamentAsset` |
-| `src/JevModerationPlugin.php` | Filament plugin (ID `jev-moderation`): `make()`, `get()`, fluent options, registers the resource, pages and widgets |
+| `src/JevModerationPlugin.php` | Filament plugin (ID `jev-moderation`): `make()`, `get()`, `current()` (null on a panel without it); options `navigationGroup()` (default `navigation.group`, `hasNavigationGroup` so null means ungrouped), `navigationIcon()`, `navigationSort()`, `models()` (null = every type with decisions), `includeBlocked()`, `modelLabels()` (default: class basename in sentence case), `authorRelation()` / `authorRelations()` (`getAuthorRelation($type)` returns a `BelongsTo` or null), `overrideWarningRate()` (0.3), `minimumSample()` (10). Setters validate plain values; getters evaluate closures and narrow the result, throwing `InvalidArgumentException` naming the type given; morph aliases resolve through `Relation::getMorphedModel()` |
 | `resources/dist/filament-jev-moderation.css` | `fi-jev-moderation-*` styles on Filament's colour variables, one sheet for 4 and 5 |
 | `resources/lang/en/` | Every user-facing string |
 | `src/Resources/` (planned) | Review queue resource over `ModerationDecision`: list page, row and bulk actions |
@@ -59,6 +59,8 @@ Built so far: service provider, plugin class and stylesheet from the skeleton. T
 | Calibration pairs each human row with the latest earlier `jev`/`rescan` result; latest human row per Jev row counts; Jev passed then rejected = missed (separate); low-confidence flags banded by `meta.jev_confidence`; bands `[lower, upper)` in 0.1 steps; grouped by Jev `model` version, latest by default | Like-for-like with thresholds (core decision 1), version per core decision 3; only content over a threshold is reviewed, so suggestions are one-sided |
 | Overview override rate uses the core `stats` definition exactly | The panel and CLI must agree |
 | Seed history with the core's `ModerationDecisionFactory`, not `FakeDriver` | Exact confidences and back-dated timestamps; `classifyAs()` stores the category probability, not the given confidence |
+| `src/` never uses `Workbench\App`, `Workbench\Database` or the tests namespace (arch test) | The plugin works with any moderated model; the workbench models exist only to demo and test two different shapes. A bare `Workbench` prefix does not match in Pest's `toUse()`, so the real namespaces are named |
+| Author relations must be `BelongsTo`, checked in the setter | Author history queries the foreign key; a mistake fails at panel boot, not on the page |
 | Slug `filament-jev-moderation`, plugin ID `jev-moderation` | The core owns `jev-moderation` for config, publish tags and commands |
 | Support Filament 4 and 5, not 3 | User's choice. 4 and 5 share `Filament\Schemas` and `Filament\Actions`, so there is no `Compat/` layer and no `FilamentVersion` helper. Filament 3 could only run on Laravel 12 (security fixes only, ending early 2027) and would need its own schema, infolist and action classes. Action and form construction stays in one place so 3 could be added later |
 | Testbench workbench, not the brief's `test-app/` | House pattern (as filament-headroom); `/1331-test-app` remains for a real-app check |
