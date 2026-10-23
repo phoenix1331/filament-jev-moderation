@@ -20,6 +20,7 @@ use Illuminate\Support\Str;
 use InvalidArgumentException;
 use LogicException;
 use Phoenix1331\FilamentJevModeration\Enums\ReviewAction;
+use Phoenix1331\FilamentJevModeration\Resources\ReviewQueueResource;
 use Phoenix1331\JevModeration\Concerns\Moderatable;
 use Phoenix1331\JevModeration\Models\ModerationDecision;
 use UnitEnum;
@@ -447,7 +448,7 @@ class JevModerationPlugin implements Plugin
 
     public function register(Panel $panel): void
     {
-        // The review queue, pages and widgets are registered here.
+        $panel->resources([ReviewQueueResource::class]);
     }
 
     public function boot(Panel $panel): void

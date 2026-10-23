@@ -29,7 +29,7 @@ Detail lives in the core's `CONTEXT.md`; these shape every query here.
 
 ## Architecture at a glance
 
-Built so far: service provider, stylesheet, plugin class, its options, authorisation and the review queue query. The rest is the target layout from the brief.
+Built so far: service provider, stylesheet, plugin class, its options, authorisation, the review queue query and the review queue resource (list only). The rest is the target layout from the brief.
 
 | Path | Role |
 |---|---|
@@ -37,7 +37,8 @@ Built so far: service provider, stylesheet, plugin class, its options, authorisa
 | `src/JevModerationPlugin.php` | Filament plugin (ID `jev-moderation`): `make()`, `get()`, `current()` (null on a panel without it), static `allows()`; `authorize()` / `isAuthorized()`, `authorizeActionsUsing()` / `canReview(ReviewAction, ?decision, ?user)`; options `navigationGroup()` (default `navigation.group`, `hasNavigationGroup` so null means ungrouped), `navigationIcon()`, `navigationSort()`, `models()` (null = every type with decisions), `includeBlocked()`, `modelLabels()` (default: class basename in sentence case), `authorRelation()` / `authorRelations()` (`getAuthorRelation($type)` returns a `BelongsTo` or null), `overrideWarningRate()` (0.3), `minimumSample()` (10). Setters validate plain values; getters evaluate closures and narrow the result, throwing `InvalidArgumentException` naming the type given; morph aliases resolve through `Relation::getMorphedModel()` |
 | `resources/dist/filament-jev-moderation.css` | `fi-jev-moderation-*` styles on Filament's colour variables, one sheet for 4 and 5 |
 | `resources/lang/en/` | Every user-facing string |
-| `src/Resources/` (planned) | Review queue resource over `ModerationDecision`: list page, row and bulk actions |
+| `src/Resources/ReviewQueueResource.php` | Resource over `ModerationDecision` at `moderation/queue`, list page `Pages/ListReviewQueue` only (create, edit, delete always false; `canViewAny()` = `JevModerationPlugin::allows()`, so a Shield `viewAny` policy does not gate it). Query: `ReviewQueueQuery`, `moderatable` eager loaded with `constrain()` (no visibility scope) and `morphWith()` author relations, `jev_category` subselect (latest earlier `jev`/`rescan` category, for reports). Default sort: null confidence last, confidence desc, `created_at`, `id`. Badge: queue count, null at zero. Row and bulk actions planned |
+| `src/Concerns/HasModerationNavigation.php` | Navigation group, icon and sort from the plugin (sort = plugin base + own sort); the page's own values on a panel without the plugin |
 | `src/Pages/` (planned) | Decision detail, author history, thresholds viewer |
 | `src/Widgets/` (planned) | Overview stats, volume chart, calibration |
 | `src/Queries/ReviewQueueQuery.php` (`@internal`) | The queue: `builder()` (latest row per record via `NOT EXISTS`, `statuses()`, live records only), `modelTypes()` (stored `moderatable_type` to class: `models()` via `getMorphClass()`, else distinct stored types whose class exists and uses `Moderatable`) |
@@ -54,6 +55,8 @@ Built so far: service provider, stylesheet, plugin class, its options, authorisa
 |---|---|
 | UI only; reads `moderation_decisions`, writes through the core API | Moderation logic, events and the audit trail stay in one place; the plugin cannot drift from the core's rules |
 | Review queue = flagged (optionally blocked) rows with no newer row for the same record (`NOT EXISTS`), restricted to live records via `whereHasMorph(..., withoutModeration())` | Starts from the `status, created_at` index; comparisons stay in SQL so stringified fetches cannot break them; the core's visibility scope would otherwise hide every queued record in `pre` mode (verified) |
+| Queue excerpt = the record's current `moderatableContent()` joined with ` · `, cut to 140 characters; author name = Filament `HasName`, else `name`, else `#key` | Content is shown as it is now, which matches the decision except after `saveQuietly()` edits; authors need not be panel users |
+| Reports sort after every scored row and show the category of the Jev result before them | A report has no confidence or category of its own; `CASE` puts nulls last on every database, where plain `desc` differs (PostgreSQL sorts nulls first) |
 | Moderated records are loaded with `MorphTo::constrain([Type => withoutModeration()])`, never plain `with('moderatable')` | Removes only the core's visibility scope and keeps host scopes such as `SoftDeletes` |
 | Approve and reject check the record's latest decision id first and skip with a notice if it moved | The core does not check current status; two moderators would otherwise append two reviews |
 | Reclassify = core `reject($moderator, $note, $category)` (core 0.2.0, released) | One outcome (removal) with a corrected category; the core validates the category against the record's policy |
