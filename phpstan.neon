@@ -1,10 +1,12 @@
 includes:
     - vendor/larastan/larastan/extension.neon
 
-# tests/Fixtures is analysed because PHPStan skips traits no analysed class uses yet.
+# tests/Fixtures and workbench are analysed because PHPStan skips traits no analysed
+# class uses yet, and tests reuse the workbench models.
 parameters:
     level: max
     paths:
         - src
         - tests/Fixtures
+        - workbench
     tmpDir: build/phpstan

@@ -42,7 +42,7 @@ Built so far: service provider, plugin class and stylesheet from the skeleton. T
 | `src/Widgets/` (planned) | Overview stats, volume chart, calibration |
 | `src/Queries/`, `src/Calibration/` (planned, `@internal`) | Latest-decision query, calibration maths |
 | `src/Concerns/` (planned) | Page and widget authorisation, navigation from plugin options |
-| `workbench/` | Testbench app: `AdminPanelProvider` with the plugin, demo user; moderated fixture models and seeded decisions to come (`composer serve`) |
+| `workbench/` | Testbench app: `AdminPanelProvider` with the plugin; `ForumPost` (`community`, author `user`) and `ChatMessage` (`chat`, author `sender`) with `#[Moderate]`, their migrations and factories (`about($category)` picks matching synthetic content); `DatabaseSeeder` writes 90 days of history through the core's `ModerationDecisionFactory`; `Support/DemoRandom` seeded randomness; `WorkbenchServiceProvider` sets the fake driver, `sync` and `post` mode |
 | `tests/` | Pest + Testbench + `pest-plugin-livewire`; `tests/Fixtures/TestPanelProvider.php` is the default `admin` panel; `tests/Arch/` enforces strict types and no debug calls |
 | `.github/scripts/` | `check-archive.sh` (dist contents), `check-actions-pinned.sh` (SHA pins) |
 
@@ -51,6 +51,14 @@ Built so far: service provider, plugin class and stylesheet from the skeleton. T
 | Decision | Why |
 |---|---|
 | UI only; reads `moderation_decisions`, writes through the core API | Moderation logic, events and the audit trail stay in one place; the plugin cannot drift from the core's rules |
+| Review queue = flagged (optionally blocked) rows with no newer row for the same record (`NOT EXISTS`), restricted to live records via `whereHasMorph(..., withoutModeration())` | Starts from the `status, created_at` index; comparisons stay in SQL so stringified fetches cannot break them; the core's visibility scope would otherwise hide every queued record in `pre` mode (verified) |
+| Moderated records are loaded with `MorphTo::constrain([Type => withoutModeration()])`, never plain `with('moderatable')` | Removes only the core's visibility scope and keeps host scopes such as `SoftDeletes` |
+| Approve and reject check the record's latest decision id first and skip with a notice if it moved | The core does not check current status; two moderators would otherwise append two reviews |
+| Reclassify = core `reject($moderator, $note, $category)` (core 0.2.0) | One outcome (removal) with a corrected category; the core validates the category against the record's policy |
+| Author history through each model's author relation (`BelongsTo`, default `user`, overridable per model), not core author columns | Matches the core's `moderationAuthor()` default, works on existing decisions, no schema change; revisit core columns if per-type subqueries get slow |
+| Calibration pairs each human row with the latest earlier `jev`/`rescan` result; latest human row per Jev row counts; Jev passed then rejected = missed (separate); low-confidence flags banded by `meta.jev_confidence`; bands `[lower, upper)` in 0.1 steps; grouped by Jev `model` version, latest by default | Like-for-like with thresholds (core decision 1), version per core decision 3; only content over a threshold is reviewed, so suggestions are one-sided |
+| Overview override rate uses the core `stats` definition exactly | The panel and CLI must agree |
+| Seed history with the core's `ModerationDecisionFactory`, not `FakeDriver` | Exact confidences and back-dated timestamps; `classifyAs()` stores the category probability, not the given confidence |
 | Slug `filament-jev-moderation`, plugin ID `jev-moderation` | The core owns `jev-moderation` for config, publish tags and commands |
 | Support Filament 4 and 5, not 3 | User's choice. 4 and 5 share `Filament\Schemas` and `Filament\Actions`, so there is no `Compat/` layer and no `FilamentVersion` helper. Filament 3 could only run on Laravel 12 (security fixes only, ending early 2027) and would need its own schema, infolist and action classes. Action and form construction stays in one place so 3 could be added later |
 | Testbench workbench, not the brief's `test-app/` | House pattern (as filament-headroom); `/1331-test-app` remains for a real-app check |
@@ -86,8 +94,11 @@ Verified locally: Filament 5.10.3 on Laravel 13.38 (stable), 4.13.3 on Laravel 1
 **composer**: build | serve
 **login**: `/_workbench` logs in as `demo@example.com` (`testbench.yaml` `workbench.user`) and lands on `/admin`
 
-- `testbench.yaml` lists the package provider, `WorkbenchServiceProvider` (host-app config) and `AdminPanelProvider`; seeders run from `seeders:` only
-- Seeder randomness fixed with `mt_srand(1331)` so screenshots only change with the UI
+- `testbench.yaml` lists the package provider, `WorkbenchServiceProvider` (host-app config) and `AdminPanelProvider`; `migrations:` loads the core's published migration from `vendor/` plus `workbench/database/migrations`; seeders run from `seeders:` only
+- Seeded story: two moderators (Demo User, Priya Shah), eight authors with `Jordan Lee` writing most harmful content; per item a weighted scenario (passed; passed then reported and removed or dismissed; threshold flag reviewed with overturns falling steeply above the threshold; blocked with occasional appeals; low-confidence flags; failed then rescanned; rescanned after a policy change); Jev `jev-1.13.0` before day 45, `jev-1.14.0` after; most of the last three days unreviewed so the queue is never empty; one flagged post deleted to prove the queue skips it
+- `DemoRandom` (`Random\Randomizer` on a seeded `Mt19937`), not `mt_rand()`: Pest's security preset bans `mt_rand`, and an instance keeps no global state. Same seed, same history (`tests/Feature/WorkbenchSeederTest.php`)
+- Content is created with `createQuietly()`, so no check runs while seeding; content saved in the demo is checked inline by the fake driver
+- Larastan analyses `workbench/` too: tests reuse its models
 
 ## CI
 

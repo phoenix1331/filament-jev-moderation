@@ -13,6 +13,12 @@ class WorkbenchServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        //
+        // The fake driver and inline checks: content saved in the demo is
+        // moderated without a Jev key or a queue worker.
+        config([
+            'jev-moderation.driver' => 'fake',
+            'jev-moderation.sync' => true,
+            'jev-moderation.mode' => 'post',
+        ]);
     }
 }

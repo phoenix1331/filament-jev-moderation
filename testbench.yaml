@@ -11,6 +11,11 @@ providers:
   - Workbench\App\Providers\WorkbenchServiceProvider
   - Workbench\App\Providers\Filament\AdminPanelProvider
 
+# The core only publishes its migration, so load it from vendor.
+migrations:
+  - vendor/phoenix1331/laravel-jev-moderation/database/migrations
+  - workbench/database/migrations
+
 # Seed here only: adding --seed to migrate-fresh as well runs the seeder twice.
 seeders:
   - Workbench\Database\Seeders\DatabaseSeeder
