@@ -21,7 +21,11 @@ This is a Composer **package**, not a Laravel app. There is no `app/`, no Docker
 | No Docker, Makefile or database server | Package development only: host PHP and Composer, Testbench on SQLite |
 | `composer.lock` gitignored | Libraries resolve against the consumer's lock file; CI tests prefer-lowest and prefer-stable instead |
 | Support Filament 4 and 5, not 3 | User's choice. 4 and 5 share `Filament\Schemas` and `Filament\Actions`, so there is no `Compat/` layer and no `FilamentVersion` helper; Filament 3 would need its own schema, infolist and action classes |
-| No Dependabot | Its `chore(deps):` titles break the no-scope commit rule; dependencies are updated by hand |
+| Target 100/100 Plumb package health (shown on the Filament plugin directory) | Security 55%, maintenance 30%, ecosystem 15% of the score; checks listed at plumbphp.dev/checks |
+| Every action pinned to a full commit SHA with a `# vX.Y.Z` comment, enforced by `.github/scripts/check-actions-pinned.sh` in CI | A tag can be moved to other code, a SHA cannot; Plumb's heaviest security check |
+| Dependabot for `github-actions` only, weekly, grouped, cooldown 3 to 14 days, commit prefix `ci` with no scope (overrides the house "no Dependabot" rule) | Plumb needs an update tool covering every ecosystem in use and a cooldown of at least 3 days. Composer and npm count only when their lock files are committed, and both are gitignored. `ci: bump ...` titles pass the commit rule, which `chore(deps):` would not. Merge its PRs within 30 days (14 for security) to keep the responsiveness check passing |
+| `package-lock.json` gitignored | No JS ecosystem for Dependabot to cover; Husky is the only npm dependency |
+| Workflows default to `permissions: contents: read` | Least privilege; only `release.yml` writes |
 
 ## Dependencies and constraints
 
@@ -40,9 +44,10 @@ This is a Composer **package**, not a Laravel app. There is no `app/`, no Docker
 
 | Workflow | Jobs |
 |---|---|
-| `.github/workflows/tests.yml` | Pint `--test` \| Filament 4/5 x Laravel 12/13 x PHP 8.3-8.5 combinations x prefer-lowest/prefer-stable \| coverage (pcov, `--min=90`) \| dist archive check |
+| `.github/workflows/tests.yml` | Pint `--test` \| Filament 4/5 x Laravel 12/13 x PHP 8.3-8.5 combinations x prefer-lowest/prefer-stable \| coverage (pcov, `--min=90`) \| dist archive check \| pinned actions check |
 | `.github/workflows/static-analysis.yml` | Larastan per Filament major |
 | `.github/workflows/release.yml` | On `v*` tags: release notes from the matching `CHANGELOG.md` section |
+| `.github/dependabot.yml` | Weekly grouped GitHub Actions updates, `ci:` titles |
 
 ## Local setup
 

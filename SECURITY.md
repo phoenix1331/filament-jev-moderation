@@ -12,7 +12,7 @@ While Jev Moderation for Filament is pre-1.0, fixes are released on the latest m
 
 Please do not open a public GitHub issue for security vulnerabilities.
 
-Report security issues by emailing **darren@phoenix1331.co.uk**. Include:
+Report security issues privately through GitHub: [report a vulnerability](https://github.com/phoenix1331/filament-jev-moderation/security/advisories/new) (Security tab, "Report a vulnerability"). If you cannot use GitHub, email **darren@phoenix1331.co.uk**. Include:
 
 - A description of the vulnerability and its potential impact
 - Steps to reproduce or a proof-of-concept

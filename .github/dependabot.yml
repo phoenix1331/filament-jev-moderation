@@ -1,0 +1,21 @@
+# Keeps the SHA-pinned GitHub Actions current. Composer and npm are not covered on
+# purpose: their lock files are gitignored, so there is nothing to update for a library.
+# The `ci` prefix with no scope gives titles like "ci: bump actions/checkout from x to y",
+# which pass the commit-msg rule (lowercase, no scope).
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+      semver-major-days: 14
+      semver-minor-days: 7
+      semver-patch-days: 3
+    commit-message:
+      prefix: ci
+    groups:
+      actions:
+        patterns:
+          - '*'
