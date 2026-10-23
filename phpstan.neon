@@ -1,0 +1,10 @@
+includes:
+    - vendor/larastan/larastan/extension.neon
+
+# tests/Fixtures is analysed because PHPStan skips traits no analysed class uses yet.
+parameters:
+    level: max
+    paths:
+        - src
+        - tests/Fixtures
+    tmpDir: build/phpstan

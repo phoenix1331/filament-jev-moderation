@@ -1,0 +1,12 @@
+/*
+ * Jev Moderation for Filament styles for Filament 4 and 5. Filament's compiled CSS only
+ * contains the Tailwind utilities Filament itself uses, so plugin markup
+ * uses its own fi-jev-moderation-* classes on Filament's colour variables.
+ */
+.fi-jev-moderation-muted {
+    color: var(--gray-500);
+}
+
+.dark .fi-jev-moderation-muted {
+    color: var(--gray-400);
+}

@@ -1,0 +1,39 @@
+name: static analysis
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  larastan:
+    name: larastan - filament ${{ matrix.filament }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    strategy:
+      fail-fast: false
+      matrix:
+        # Each major is analysed, so a class or signature missing from one fails here, not for a user.
+        filament: ['4.*', '5.*']
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: intl
+          coverage: none
+
+      - name: install dependencies
+        run: |
+          composer require "filament/filament:${{ matrix.filament }}" --no-interaction --no-update
+          composer update --prefer-stable --prefer-dist --no-interaction --no-progress
+
+      - name: run larastan
+        run: composer analyse -- --error-format=github

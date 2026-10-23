@@ -1,0 +1,36 @@
+laravel: '@testbench'
+
+env:
+  - APP_ENV=local
+  - APP_DEBUG=true
+  - AUTH_MODEL=Workbench\App\Models\User
+  - DB_CONNECTION=sqlite
+
+providers:
+  - Phoenix1331\FilamentJevModeration\FilamentJevModerationServiceProvider
+  - Workbench\App\Providers\WorkbenchServiceProvider
+  - Workbench\App\Providers\Filament\AdminPanelProvider
+
+# Seed here only: adding --seed to migrate-fresh as well runs the seeder twice.
+seeders:
+  - Workbench\Database\Seeders\DatabaseSeeder
+
+workbench:
+  start: '/admin'
+  user: demo@example.com
+  install: true
+  health: false
+  discovers:
+    web: false
+    api: false
+    commands: false
+    components: false
+    views: false
+  build:
+    - asset-publish
+    - filament:assets
+    - create-sqlite-db
+    - db-wipe
+    - migrate-fresh
+  assets:
+    - laravel-assets

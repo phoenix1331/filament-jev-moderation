@@ -1,0 +1,106 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pint:
+    name: pint
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: intl
+          coverage: none
+
+      - uses: ramsey/composer-install@v3
+
+      - name: check code style
+        run: vendor/bin/pint --test
+
+  tests:
+    name: filament ${{ matrix.combo.filament }} - laravel ${{ matrix.combo.laravel }} - php ${{ matrix.combo.php }} - ${{ matrix.stability }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    strategy:
+      fail-fast: false
+      matrix:
+        # Filament 4 (Livewire 3) and 5 (Livewire 4) both allow Laravel 12 and 13.
+        # Package floor: PHP 8.3 and Laravel 12, from phoenix1331/laravel-jev-moderation.
+        combo:
+          - { filament: '4.*', laravel: '12.*', php: '8.3' }
+          - { filament: '4.*', laravel: '13.*', php: '8.4' }
+          - { filament: '5.*', laravel: '12.*', php: '8.3' }
+          - { filament: '5.*', laravel: '13.*', php: '8.4' }
+          - { filament: '5.*', laravel: '13.*', php: '8.5' }
+        stability: [prefer-lowest, prefer-stable]
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.combo.php }}
+          extensions: intl, pdo_sqlite
+          coverage: none
+
+      - name: install dependencies
+        run: |
+          composer require "filament/filament:${{ matrix.combo.filament }}" "laravel/framework:${{ matrix.combo.laravel }}" --no-interaction --no-update
+          composer update --${{ matrix.stability }} --prefer-dist --no-interaction --no-progress
+
+      - name: run tests
+        run: vendor/bin/pest --ci
+
+  coverage:
+    name: coverage
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: intl, pdo_sqlite
+          coverage: pcov
+
+      - uses: ramsey/composer-install@v3
+
+      - name: run tests with the coverage gate
+        shell: bash
+        run: vendor/bin/pest --coverage --min=90 | tee coverage.txt
+
+      - name: add coverage to the job summary
+        if: always()
+        run: |
+          {
+            echo '### coverage'
+            echo '```'
+            cat coverage.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  archive:
+    name: dist archive
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: check archive contents
+        run: sh .github/scripts/check-archive.sh
