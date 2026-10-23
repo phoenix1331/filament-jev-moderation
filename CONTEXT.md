@@ -29,7 +29,7 @@ Detail lives in the core's `CONTEXT.md`; these shape every query here.
 
 ## Architecture at a glance
 
-Built so far: service provider, stylesheet, plugin class, its options and authorisation. The rest is the target layout from the brief.
+Built so far: service provider, stylesheet, plugin class, its options, authorisation and the review queue query. The rest is the target layout from the brief.
 
 | Path | Role |
 |---|---|
@@ -40,11 +40,12 @@ Built so far: service provider, stylesheet, plugin class, its options and author
 | `src/Resources/` (planned) | Review queue resource over `ModerationDecision`: list page, row and bulk actions |
 | `src/Pages/` (planned) | Decision detail, author history, thresholds viewer |
 | `src/Widgets/` (planned) | Overview stats, volume chart, calibration |
-| `src/Queries/`, `src/Calibration/` (planned, `@internal`) | Latest-decision query, calibration maths |
+| `src/Queries/ReviewQueueQuery.php` (`@internal`) | The queue: `builder()` (latest row per record via `NOT EXISTS`, `statuses()`, live records only), `modelTypes()` (stored `moderatable_type` to class: `models()` via `getMorphClass()`, else distinct stored types whose class exists and uses `Moderatable`) |
+| `src/Calibration/` (planned, `@internal`) | Calibration maths |
 | `src/Concerns/AuthorisesPageAccess.php`, `AuthorisesWidgetView.php` | `canAccess()` / `canView()` from `JevModerationPlugin::allows()`; the widget concern also aborts 403 on mount and every hydrate |
 | `src/Enums/ReviewAction.php` | `approve`, `reject`, `reclassify`: the actions and the Gate abilities checked on a `ModerationDecision` policy |
 | `workbench/` | Testbench app: `AdminPanelProvider` with the plugin; `ForumPost` (`community`, author `user`) and `ChatMessage` (`chat`, author `sender`) with `#[Moderate]`, their migrations and factories (`about($category)` picks matching synthetic content); `DatabaseSeeder` writes 90 days of history through the core's `ModerationDecisionFactory`; `Support/DemoRandom` seeded randomness; `WorkbenchServiceProvider` sets the fake driver, `sync` and `post` mode |
-| `tests/` | Pest + Testbench + `pest-plugin-livewire`; `tests/Fixtures/TestPanelProvider.php` is the default `admin` panel with fixture `AuthorisedPage` and `AuthorisedWidget`; `tests/Fixtures/DecisionPolicy.php` stands in for a Shield policy; `tests/Arch/` enforces strict types and no debug calls |
+| `tests/` | Pest + Testbench + `pest-plugin-livewire`; `tests/Fixtures/TestPanelProvider.php` is the default `admin` panel with fixture `AuthorisedPage` and `AuthorisedWidget`; `tests/Fixtures/DecisionPolicy.php` stands in for a Shield policy; `TestCase::migrateModerationTables()` migrates users, the core table and workbench tables with rollback; files in the `databases` group also run on PostgreSQL, MySQL and MariaDB; `tests/Arch/` enforces strict types and no debug calls |
 | `.github/scripts/` | `check-archive.sh` (dist contents), `check-actions-pinned.sh` (SHA pins) |
 
 ## Decisions
@@ -110,7 +111,7 @@ Verified locally: Filament 5.10.3 on Laravel 13.38 (stable), 4.13.3 on Laravel 1
 
 | Workflow | Jobs |
 |---|---|
-| `.github/workflows/tests.yml` | Pint `--test` \| Filament 4/5 x Laravel 12/13 x PHP 8.3-8.5 combinations x prefer-lowest/prefer-stable \| coverage (pcov, `--min=90`) \| dist archive check \| pinned actions check |
+| `.github/workflows/tests.yml` | Pint `--test` \| Filament 4/5 x Laravel 12/13 x PHP 8.3-8.5 combinations x prefer-lowest/prefer-stable \| `databases` group on PostgreSQL 17, MySQL 8.4 and MariaDB 11 (Filament 4 + Laravel 12, Filament 5 + Laravel 13) \| coverage (pcov, `--min=90`) \| dist archive check \| pinned actions check |
 | `.github/workflows/static-analysis.yml` | Larastan per Filament major |
 | `.github/workflows/release.yml` | On `v*` tags: release notes from the matching `CHANGELOG.md` section |
 | `.github/dependabot.yml` | Weekly grouped GitHub Actions updates, `ci:` titles |

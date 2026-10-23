@@ -21,6 +21,20 @@ abstract class TestCase extends Orchestra
         Http::preventStrayRequests();
     }
 
+    /**
+     * Users, the core's decisions table and the workbench's moderated
+     * tables, rolled back after the test so PostgreSQL, MySQL and MariaDB
+     * start each test empty too.
+     */
+    protected function migrateModerationTables(): void
+    {
+        $this->loadLaravelMigrations();
+        $this->loadMigrationsFrom(['--path' => [
+            dirname(__DIR__).'/vendor/phoenix1331/laravel-jev-moderation/database/migrations',
+            dirname(__DIR__).'/workbench/database/migrations',
+        ]]);
+    }
+
     protected function defineEnvironment($app): void
     {
         $app->make('view')->addNamespace('fixtures', __DIR__.'/Fixtures/views');

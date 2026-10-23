@@ -67,6 +67,78 @@ jobs:
       - name: run tests
         run: vendor/bin/pest --ci
 
+  databases:
+    name: ${{ matrix.db.name }} - filament ${{ matrix.combo.filament }} - laravel ${{ matrix.combo.laravel }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    strategy:
+      fail-fast: false
+      matrix:
+        # The queue and calibration rely on correlated subqueries; tests in the
+        # `databases` group run here as well as on SQLite.
+        combo:
+          - { filament: '4.*', laravel: '12.*' }
+          - { filament: '5.*', laravel: '13.*' }
+        db:
+          - { name: postgres, image: 'postgres:17', driver: pgsql, dsn: pgsql, port: 5432, ext: pdo_pgsql }
+          - { name: mysql, image: 'mysql:8.4', driver: mysql, dsn: mysql, port: 3306, ext: pdo_mysql }
+          - { name: mariadb, image: 'mariadb:11', driver: mariadb, dsn: mysql, port: 3306, ext: pdo_mysql }
+
+    services:
+      db:
+        image: ${{ matrix.db.image }}
+        # Each image reads only its own variables and ignores the rest.
+        env:
+          POSTGRES_USER: root
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: testing
+          MYSQL_ROOT_PASSWORD: password
+          MYSQL_DATABASE: testing
+          MARIADB_ROOT_PASSWORD: password
+          MARIADB_DATABASE: testing
+        ports:
+          - ${{ matrix.db.port }}:${{ matrix.db.port }}
+
+    env:
+      DB_CONNECTION: ${{ matrix.db.driver }}
+      DB_HOST: 127.0.0.1
+      DB_PORT: ${{ matrix.db.port }}
+      DB_DATABASE: testing
+      DB_USERNAME: root
+      DB_PASSWORD: password
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
+        with:
+          php-version: '8.4'
+          extensions: intl, ${{ matrix.db.ext }}
+          coverage: none
+
+      - name: wait for the database
+        shell: bash
+        run: |
+          for attempt in $(seq 1 30); do
+            if php -r 'new PDO(getenv("DSN"), getenv("DB_USERNAME"), getenv("DB_PASSWORD"));' 2>/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "error: ${{ matrix.db.name }} did not accept connections within 60 seconds"
+          exit 1
+        env:
+          DSN: ${{ matrix.db.dsn }}:host=127.0.0.1;port=${{ matrix.db.port }};dbname=testing
+
+      - name: install dependencies
+        run: |
+          composer require "filament/filament:${{ matrix.combo.filament }}" "laravel/framework:${{ matrix.combo.laravel }}" --no-interaction --no-update
+          composer update --prefer-stable --prefer-dist --no-interaction --no-progress
+
+      - name: run database tests
+        run: vendor/bin/pest --ci --group=databases
+
   coverage:
     name: coverage
     runs-on: ubuntu-latest
