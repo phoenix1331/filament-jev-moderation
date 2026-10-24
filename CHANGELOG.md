@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-10-24
+
 ### Added
 
 - Review queue (`Moderation > Review queue`): every record whose latest decision is a flag (and a block with `includeBlocked()`), across every moderated model, with its current content (including content hidden from the site) under its type, author, category with its source beneath, confidence and time waiting, laid out to fit beside an open sidebar at 1280px. Most confident first, then longest waiting; reports show their reason and the category Jev gave before them. The navigation badge shows how many are waiting
@@ -25,4 +27,5 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Moderation actions (approve, reject, reclassify) are checked on top of `authorize()`: through `authorizeActionsUsing()` when given, else through a registered `ModerationDecision` policy (Filament Shield or your own; abilities `approve`, `reject`, `reclassify`), else allowed to anyone with access
 - `JevModerationPlugin` with `make()`, `get()` and `current()`, and options for the navigation group (default "Moderation", translatable), icon and sort; `models([...])` to limit the plugin to some moderated models (default: every type with decisions); `includeBlocked()` to queue automatic blocks as well as flags; `modelLabels([...])` to name model types; `authorRelation()` and `authorRelations([...])` for author history (default: the `user` relation); `overrideWarningRate()` and `minimumSample()` for calibration. Closures are accepted throughout, and invalid values fail when the panel boots
 
-[Unreleased]: https://github.com/phoenix1331/filament-jev-moderation/commits/main
+[Unreleased]: https://github.com/phoenix1331/filament-jev-moderation/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/phoenix1331/filament-jev-moderation/releases/tag/v0.1.0
