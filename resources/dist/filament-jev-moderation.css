@@ -301,3 +301,56 @@
     margin-right: 0.375rem;
     vertical-align: -0.1875rem;
 }
+
+.fi-jev-moderation-calibration-controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 1rem;
+}
+
+.fi-jev-moderation-calibration-clear {
+    font-size: 0.875rem;
+}
+
+.fi-jev-moderation-command {
+    display: block;
+    width: fit-content;
+    max-width: 100%;
+    margin-top: 0.375rem;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.375rem;
+    overflow-x: auto;
+    white-space: pre;
+    font-size: 0.8125rem;
+    color: var(--gray-950);
+    background: var(--gray-100);
+}
+
+.dark .fi-jev-moderation-command {
+    color: var(--gray-100);
+    background: var(--gray-800);
+}
+
+.fi-jev-moderation-threshold-facts {
+    margin: 0 0 1.25rem;
+}
+
+.fi-jev-moderation-thresholds {
+    max-width: 32rem;
+    margin-bottom: 1.5rem;
+}
+
+.fi-jev-moderation-threshold-error {
+    font-size: 0.875rem;
+    color: var(--danger-600);
+}
+
+.dark .fi-jev-moderation-threshold-error {
+    color: var(--danger-400);
+}
+
+.fi-jev-moderation-rescan-note {
+    margin-bottom: 0.75rem;
+    font-size: 0.875rem;
+}

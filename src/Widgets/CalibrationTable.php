@@ -8,9 +8,9 @@ use Filament\Widgets\Widget;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Number;
 use Phoenix1331\FilamentJevModeration\Concerns\AuthorisesWidgetView;
-use Phoenix1331\FilamentJevModeration\Data\Calibration;
 use Phoenix1331\FilamentJevModeration\Data\CalibrationBand;
 use Phoenix1331\FilamentJevModeration\JevModerationPlugin;
+use Phoenix1331\FilamentJevModeration\Pages\Thresholds;
 use Phoenix1331\FilamentJevModeration\Queries\CalibrationPairs;
 use Phoenix1331\FilamentJevModeration\Resources\ReviewQueueResource;
 use Phoenix1331\FilamentJevModeration\Support\CalibrationCalculator;
@@ -19,7 +19,9 @@ use Phoenix1331\FilamentJevModeration\Support\CalibrationCalculator;
  * How often moderators overturn Jev in each confidence band, per policy
  * and category, for one Jev version. Bands where they overturn more than
  * the plugin's warning rate, with enough reviews, are highlighted with the
- * threshold change they suggest.
+ * threshold change they suggest. With `onlyFlagged` (as above the review
+ * queue) it lists just those bands and links to the thresholds page, which
+ * shows every band.
  */
 class CalibrationTable extends Widget
 {
@@ -27,6 +29,9 @@ class CalibrationTable extends Widget
 
     /** The Jev version shown; null for the newest. Checked against the versions seen. */
     public ?string $model = null;
+
+    /** Show only the bands that suggest a change. */
+    public bool $onlyFlagged = false;
 
     protected int|string|array $columnSpan = 'full';
 
@@ -41,39 +46,28 @@ class CalibrationTable extends Widget
     protected function getViewData(): array
     {
         $plugin = self::plugin();
-        $calibration = $this->calibration();
+        $calibration = CalibrationCalculator::forPlugin($plugin, $this->model);
+
+        // An unknown version (stale or tampered with) fell back to the newest.
+        if ($this->model !== null && $calibration->model !== $this->model) {
+            $this->model = null;
+        }
+
         $policies = [];
 
-        foreach ($calibration->bands as $band) {
+        foreach ($this->onlyFlagged ? $calibration->flagged() : $calibration->bands as $band) {
             $policies[$band->policy][] = $band;
         }
 
         return [
             'calibration' => $calibration,
             'policies' => $policies,
+            'onlyFlagged' => $this->onlyFlagged,
+            'thresholdsUrl' => JevModerationPlugin::current() === null ? null : Thresholds::getUrl(),
             'days' => CalibrationPairs::DAYS,
             'rate' => Number::percentage($plugin->getOverrideWarningRate() * 100) ?: '0%',
             'sample' => $plugin->getMinimumSample(),
         ];
-    }
-
-    /**
-     * Run once per render. Protected: Livewire lets the browser call any public method.
-     */
-    protected function calibration(): Calibration
-    {
-        $plugin = self::plugin();
-        $calculator = new CalibrationCalculator($plugin->getOverrideWarningRate(), $plugin->getMinimumSample());
-        $pairs = (new CalibrationPairs($plugin))->get();
-        $calibration = $calculator->calculate($pairs, $this->model);
-
-        // An unknown version (stale or tampered with) falls back to the newest.
-        if ($this->model !== null && ! in_array($this->model, $calibration->models, true)) {
-            $this->model = null;
-            $calibration = $calculator->calculate($pairs);
-        }
-
-        return $calibration;
     }
 
     public static function bandLabel(CalibrationBand $band): string

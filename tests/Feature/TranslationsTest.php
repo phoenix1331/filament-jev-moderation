@@ -60,7 +60,8 @@ it('defines every translation key the plugin uses', function (): void {
         array_push($keys, ...$matches[1]);
     }
 
-    $keys = array_values(array_unique($keys));
+    // View names share the namespace prefix; they are not translation keys.
+    $keys = array_values(array_filter(array_unique($keys), fn (string $key): bool => ! view()->exists($key)));
     $missing = array_values(array_filter($keys, fn (string $key): bool => ! trans()->hasForLocale($key, 'en')));
 
     expect($keys)->not->toBeEmpty()

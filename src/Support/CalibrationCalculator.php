@@ -7,6 +7,8 @@ namespace Phoenix1331\FilamentJevModeration\Support;
 use Phoenix1331\FilamentJevModeration\Data\Calibration;
 use Phoenix1331\FilamentJevModeration\Data\CalibrationBand;
 use Phoenix1331\FilamentJevModeration\Enums\CalibrationAdvice;
+use Phoenix1331\FilamentJevModeration\JevModerationPlugin;
+use Phoenix1331\FilamentJevModeration\Queries\CalibrationPairs;
 use Phoenix1331\JevModeration\Enums\ModerationStatus;
 use stdClass;
 
@@ -33,6 +35,20 @@ final readonly class CalibrationCalculator
         private float $warningRate,
         private int $minimumSample,
     ) {}
+
+    /**
+     * Calibration over the default window with the plugin's options, for
+     * one Jev version; the newest when none is given or the given one has
+     * no reviewed results.
+     */
+    public static function forPlugin(JevModerationPlugin $plugin, ?string $model = null): Calibration
+    {
+        $calculator = new self($plugin->getOverrideWarningRate(), $plugin->getMinimumSample());
+        $pairs = (new CalibrationPairs($plugin))->get();
+        $calibration = $calculator->calculate($pairs, $model);
+
+        return $model === null || in_array($model, $calibration->models, true) ? $calibration : $calculator->calculate($pairs);
+    }
 
     /**
      * @param  iterable<stdClass>  $pairs  rows from CalibrationPairs, newest result first

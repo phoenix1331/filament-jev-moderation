@@ -17,6 +17,9 @@ return [
     ],
     'calibration' => [
         'heading' => 'Calibration',
+        'flagged_heading' => 'Calibration: bands to look at',
+        'see_all' => 'Every band and threshold',
+        'none_flagged' => '{1} The one band with reviews looks fine.|[2,*] All :count bands with reviews look fine.',
         'description' => 'How often moderators overturned Jev in each confidence band over the last :days days. A band is highlighted when they overturned more than :rate of at least :sample checked flags and blocks.',
         'version' => 'Jev version',
         'policy' => 'Policy: :policy',

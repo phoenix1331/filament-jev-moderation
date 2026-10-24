@@ -2,8 +2,11 @@
 
 declare(strict_types=1);
 
+use Filament\Panel;
+use Filament\Widgets\WidgetConfiguration;
 use Illuminate\Support\Carbon;
 use Phoenix1331\FilamentJevModeration\JevModerationPlugin;
+use Phoenix1331\FilamentJevModeration\Pages\Thresholds;
 use Phoenix1331\FilamentJevModeration\Resources\ReviewQueueResource\Pages\ListReviewQueue;
 use Phoenix1331\FilamentJevModeration\Widgets\CalibrationTable;
 use Phoenix1331\JevModeration\Enums\ModerationSource;
@@ -156,6 +159,48 @@ describe('Jev versions', function (): void {
     });
 });
 
+describe('only flagged', function (): void {
+    it('lists just the bands to look at, linking to every band', function (): void {
+        times(4, fn () => reviewOf('flagged', 'approved', 'spam', 0.55));
+        times(4, fn () => reviewOf('flagged', 'rejected', 'harassment', 0.65));
+
+        livewire(CalibrationTable::class, ['onlyFlagged' => true])
+            ->assertSee('Calibration: bands to look at')
+            ->assertSeeInOrder(['Spam', '4', '4', '0', '100%', 'consider raising review_above to 0.60'])
+            ->assertDontSee('Harassment')
+            ->assertSee('Every band and threshold')
+            ->assertSeeHtml('href="'.Thresholds::getUrl().'"');
+    });
+
+    it('says when no band needs a look', function (): void {
+        times(4, fn () => reviewOf('flagged', 'rejected', 'harassment', 0.65));
+        reviewOf('flagged', 'rejected', 'spam', 0.75);
+
+        livewire(CalibrationTable::class, ['onlyFlagged' => true])
+            ->assertSee('All 2 bands with reviews look fine.')
+            ->assertDontSeeHtml('<table');
+    });
+
+    it('is how the review queue shows it', function (): void {
+        $page = livewire(ListReviewQueue::class)->assertSeeLivewire(CalibrationTable::class)->instance();
+        $widgets = (fn (): array => $this->getFooterWidgets())->call($page);
+        $calibration = collect($widgets)->first(fn ($widget): bool => $widget instanceof WidgetConfiguration && $widget->widget === CalibrationTable::class);
+
+        expect($calibration?->getProperties())->toBe(['onlyFlagged' => true]);
+    });
+
+    it('has no thresholds link on a panel without the plugin', function (): void {
+        // Default options apply there: a minimum sample of 10.
+        times(10, fn () => reviewOf('flagged', 'approved', 'spam', 0.55));
+        Filament\Facades\Filament::setCurrentPanel(Panel::make()->id('host'));
+        app()->detectEnvironment(fn (): string => 'local');
+
+        livewire(CalibrationTable::class, ['onlyFlagged' => true])
+            ->assertSee('consider raising review_above')
+            ->assertDontSee('Every band and threshold');
+    });
+});
+
 describe('placement and access', function (): void {
     it('sits below the review queue and the volume chart, full width', function (): void {
         livewire(ListReviewQueue::class)->assertSeeLivewire(CalibrationTable::class);
@@ -168,9 +213,5 @@ describe('placement and access', function (): void {
 
         expect(CalibrationTable::canView())->toBeFalse();
         livewire(CalibrationTable::class)->assertForbidden();
-    });
-
-    it('keeps its calculation off the public Livewire surface', function (): void {
-        expect((new ReflectionMethod(CalibrationTable::class, 'calibration'))->isPublic())->toBeFalse();
     });
 });

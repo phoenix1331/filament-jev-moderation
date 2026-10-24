@@ -1,24 +1,30 @@
-@use('Phoenix1331\FilamentJevModeration\Widgets\CalibrationTable')
-
 <x-filament-widgets::widget>
     <x-filament::section
-        :heading="__('filament-jev-moderation::widgets.calibration.heading')"
+        :heading="$onlyFlagged ? __('filament-jev-moderation::widgets.calibration.flagged_heading') : __('filament-jev-moderation::widgets.calibration.heading')"
         :description="__('filament-jev-moderation::widgets.calibration.description', ['days' => $days, 'rate' => $rate, 'sample' => $sample])"
     >
-        @if (count($calibration->models) > 1)
-            <x-slot name="afterHeader">
-                <x-filament::input.wrapper>
-                    <x-filament::input.select
-                        wire:model.live="model"
-                        :aria-label="__('filament-jev-moderation::widgets.calibration.version')"
-                    >
-                        @foreach ($calibration->models as $version)
-                            <option value="{{ $version }}" @selected($version === $calibration->model)>{{ $version }}</option>
-                        @endforeach
-                    </x-filament::input.select>
-                </x-filament::input.wrapper>
-            </x-slot>
-        @endif
+        <x-slot name="afterHeader">
+            <div class="fi-jev-moderation-calibration-controls">
+                @if ($onlyFlagged && $thresholdsUrl !== null)
+                    <x-filament::link :href="$thresholdsUrl" icon="heroicon-m-arrow-right" icon-position="after">
+                        {{ __('filament-jev-moderation::widgets.calibration.see_all') }}
+                    </x-filament::link>
+                @endif
+
+                @if (count($calibration->models) > 1)
+                    <x-filament::input.wrapper>
+                        <x-filament::input.select
+                            wire:model.live="model"
+                            :aria-label="__('filament-jev-moderation::widgets.calibration.version')"
+                        >
+                            @foreach ($calibration->models as $version)
+                                <option value="{{ $version }}" @selected($version === $calibration->model)>{{ $version }}</option>
+                            @endforeach
+                        </x-filament::input.select>
+                    </x-filament::input.wrapper>
+                @endif
+            </div>
+        </x-slot>
 
         @if ($calibration->bands === [])
             <x-filament::empty-state
@@ -27,6 +33,10 @@
                 :description="__('filament-jev-moderation::widgets.calibration.empty.description')"
                 :contained="false"
             />
+        @elseif ($policies === [])
+            <p class="fi-jev-moderation-muted fi-jev-moderation-calibration-clear">
+                {{ __('filament-jev-moderation::widgets.calibration.none_flagged', ['count' => count($calibration->bands)]) }}
+            </p>
         @else
             @if ($calibration->model !== null && count($calibration->models) === 1)
                 <p class="fi-jev-moderation-muted fi-jev-moderation-calibration-version">
@@ -35,50 +45,12 @@
             @endif
 
             @foreach ($policies as $policy => $bands)
-                <div class="fi-jev-moderation-calibration-policy">
-                    <table class="fi-jev-moderation-calibration">
-                        <caption>{{ __('filament-jev-moderation::widgets.calibration.policy', ['policy' => $policy]) }}</caption>
-                        <thead>
-                            <tr>
-                                <th scope="col">{{ __('filament-jev-moderation::widgets.calibration.columns.category') }}</th>
-                                <th scope="col">{{ __('filament-jev-moderation::widgets.calibration.columns.band') }}</th>
-                                <th scope="col">{{ __('filament-jev-moderation::widgets.calibration.columns.checked') }}</th>
-                                <th scope="col">{{ __('filament-jev-moderation::widgets.calibration.columns.overturned') }}</th>
-                                <th scope="col">{{ __('filament-jev-moderation::widgets.calibration.columns.upheld') }}</th>
-                                <th scope="col">{{ __('filament-jev-moderation::widgets.calibration.columns.rate') }}</th>
-                                <th scope="col">{{ __('filament-jev-moderation::widgets.calibration.columns.missed') }}</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach ($bands as $band)
-                                <tr @class(['fi-jev-moderation-calibration-flagged' => $band->advice !== null])>
-                                    <th scope="row">{{ CalibrationTable::bandLabel($band) }}</th>
-                                    <td>{{ number_format($band->lower, 1) }} – {{ number_format($band->upper, 1) }}</td>
-                                    <td>{{ $band->sample() }}</td>
-                                    <td>{{ $band->overturned }}</td>
-                                    <td>{{ $band->upheld }}</td>
-                                    <td>
-                                        @if ($band->overrideRate() === null)
-                                            <span class="fi-jev-moderation-muted">{{ __('filament-jev-moderation::widgets.calibration.no_rate') }}</span>
-                                        @else
-                                            <span @class(['fi-jev-moderation-muted' => $band->sample() < $sample])>{{ CalibrationTable::percent($band->overrideRate()) }}</span>
-                                        @endif
-                                    </td>
-                                    <td>{{ $band->missed }}</td>
-                                </tr>
-
-                                @if (CalibrationTable::advice($band) !== null)
-                                    <tr class="fi-jev-moderation-calibration-advice">
-                                        <td colspan="7">
-                                            <x-filament::icon icon="heroicon-m-exclamation-triangle" class="fi-jev-moderation-calibration-advice-icon" />
-                                            <span>{{ CalibrationTable::advice($band) }}</span>
-                                        </td>
-                                    </tr>
-                                @endif
-                            @endforeach
-                        </tbody>
-                    </table>
-                </div>
+                @include('filament-jev-moderation::partials.calibration-bands', [
+                    'caption' => __('filament-jev-moderation::widgets.calibration.policy', ['policy' => $policy]),
+                    'bands' => $bands,
+                    'sample' => $sample,
+                    'commands' => [],
+                ])
             @endforeach
         @endif
     </x-filament::section>

@@ -19,4 +19,14 @@ enum CalibrationAdvice: string
 
     /** Low-confidence flags in this band are mostly wrong: lower uncertain_below to it. */
     case LowerUncertainBelow = 'lower_uncertain_below';
+
+    /**
+     * The status to re-check after making the change: content whose latest
+     * decision it affects. `rescan` skips approved and rejected content
+     * unless named, and moderators' decisions must stand.
+     */
+    public function rescanStatus(): string
+    {
+        return $this === self::RaiseBlockAbove ? 'blocked' : 'flagged';
+    }
 }

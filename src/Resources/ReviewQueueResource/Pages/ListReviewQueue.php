@@ -21,6 +21,6 @@ class ListReviewQueue extends ListRecords
 
     protected function getFooterWidgets(): array
     {
-        return [DecisionVolumeChart::class, CalibrationTable::class];
+        return [DecisionVolumeChart::class, CalibrationTable::make(['onlyFlagged' => true])];
     }
 }
