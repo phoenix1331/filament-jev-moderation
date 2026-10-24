@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Phoenix1331\FilamentJevModeration\Queries;
 
+use Closure;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\Relation;
@@ -50,6 +51,25 @@ final readonly class ReviewQueueQuery
             ->whereHasMorph('moderatable', array_values($types), static function (Builder $record): void {
                 $record->scopes('withoutModeration');
             });
+    }
+
+    /**
+     * For `MorphTo::constrain()`: load each shown type past the core's
+     * visibility scope, keeping host scopes such as SoftDeletes.
+     *
+     * @return array<class-string<Model>, Closure(Builder<Model>): void>
+     */
+    public function recordConstraints(): array
+    {
+        $constraints = [];
+
+        foreach ($this->modelTypes() as $class) {
+            $constraints[$class] = static function (Builder $record): void {
+                $record->scopes('withoutModeration');
+            };
+        }
+
+        return $constraints;
     }
 
     /**

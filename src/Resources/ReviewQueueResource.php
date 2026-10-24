@@ -7,7 +7,6 @@ namespace Phoenix1331\FilamentJevModeration\Resources;
 use BackedEnum;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\TextInput;
-use Filament\Models\Contracts\HasName;
 use Filament\Resources\Resource;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\Filter;
@@ -26,7 +25,9 @@ use Phoenix1331\FilamentJevModeration\Enums\ReviewAction;
 use Phoenix1331\FilamentJevModeration\JevModerationPlugin;
 use Phoenix1331\FilamentJevModeration\Queries\ReviewQueueQuery;
 use Phoenix1331\FilamentJevModeration\Resources\ReviewQueueResource\Pages\ListReviewQueue;
+use Phoenix1331\FilamentJevModeration\Resources\ReviewQueueResource\Pages\ViewDecisionHistory;
 use Phoenix1331\FilamentJevModeration\Resources\ReviewQueueResource\ReviewActions;
+use Phoenix1331\FilamentJevModeration\Support\DisplayName;
 use Phoenix1331\JevModeration\Enums\ModerationSource;
 use Phoenix1331\JevModeration\Models\ModerationDecision;
 
@@ -84,6 +85,11 @@ class ReviewQueueResource extends Resource
         return JevModerationPlugin::allows();
     }
 
+    public static function canView(Model $record): bool
+    {
+        return JevModerationPlugin::allows();
+    }
+
     public static function canCreate(): bool
     {
         return false;
@@ -116,14 +122,9 @@ class ReviewQueueResource extends Resource
         $queue = self::queue();
         $plugin = JevModerationPlugin::get();
         $table = (new ModerationDecision)->getTable();
-        $constraints = [];
         $authors = [];
 
         foreach ($queue->modelTypes() as $type => $class) {
-            $constraints[$class] = static function (Builder $record): void {
-                $record->scopes('withoutModeration');
-            };
-
             $relation = $plugin->getAuthorRelation($type);
 
             if ($relation !== null) {
@@ -134,7 +135,7 @@ class ReviewQueueResource extends Resource
         return $queue->builder()
             ->select("{$table}.*")
             ->addSelect(['jev_category' => $queue->jevCategory()])
-            ->with(['moderatable' => static fn (MorphTo $morph): MorphTo => $morph->constrain($constraints)->morphWith($authors)]);
+            ->with(['moderatable' => static fn (MorphTo $morph): MorphTo => $morph->constrain($queue->recordConstraints())->morphWith($authors)]);
     }
 
     public static function table(Table $table): Table
@@ -241,6 +242,7 @@ class ReviewQueueResource extends Resource
     {
         return [
             'index' => ListReviewQueue::route('/'),
+            'view' => ViewDecisionHistory::route('/{record}'),
         ];
     }
 
@@ -440,7 +442,10 @@ class ReviewQueueResource extends Resource
         return Str::limit(implode(' · ', array_filter($content, is_string(...))), self::EXCERPT_LENGTH);
     }
 
-    protected static function authorName(ModerationDecision $decision): ?string
+    /**
+     * @internal
+     */
+    public static function authorName(ModerationDecision $decision): ?string
     {
         $record = $decision->getRelationValue('moderatable');
         $relation = JevModerationPlugin::get()->getAuthorRelation($decision->moderatable_type);
@@ -451,19 +456,7 @@ class ReviewQueueResource extends Resource
 
         $author = $record->getRelationValue($relation->getRelationName());
 
-        if ($author instanceof HasName) {
-            $name = $author->getFilamentName();
-
-            return is_string($name) ? $name : $name->toHtml();
-        }
-
-        if (! $author instanceof Model) {
-            return null;
-        }
-
-        $name = $author->getAttribute('name');
-
-        return is_string($name) && $name !== '' ? $name : '#'.self::key($author);
+        return $author instanceof Model ? DisplayName::of($author) : null;
     }
 
     /**
@@ -487,12 +480,5 @@ class ReviewQueueResource extends Resource
     public static function categoryLabel(string $category): string
     {
         return Str::ucfirst(str_replace('_', ' ', $category));
-    }
-
-    private static function key(Model $model): string
-    {
-        $key = $model->getKey();
-
-        return is_int($key) || is_string($key) ? (string) $key : '';
     }
 }

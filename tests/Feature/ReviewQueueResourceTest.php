@@ -59,14 +59,14 @@ describe('registration', function (): void {
             ->and(ReviewQueueResource::getNavigationSort())->toBe(1);
     });
 
-    it('offers no create, edit or delete', function (): void {
+    it('offers no create, edit or delete, only the list and each record\'s history', function (): void {
         $decision = decisionFor(forumPost())->flagged()->create();
 
         expect(ReviewQueueResource::canCreate())->toBeFalse()
             ->and(ReviewQueueResource::canEdit($decision))->toBeFalse()
             ->and(ReviewQueueResource::canDelete($decision))->toBeFalse()
             ->and(ReviewQueueResource::canDeleteAny())->toBeFalse()
-            ->and(array_keys(ReviewQueueResource::getPages()))->toBe(['index']);
+            ->and(array_keys(ReviewQueueResource::getPages()))->toBe(['index', 'view']);
     });
 });
 

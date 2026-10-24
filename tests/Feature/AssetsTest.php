@@ -5,6 +5,7 @@ declare(strict_types=1);
 use Composer\InstalledVersions;
 use Filament\Support\Facades\FilamentAsset;
 use Phoenix1331\FilamentJevModeration\FilamentJevModerationServiceProvider;
+use Symfony\Component\Finder\Finder;
 
 it('registers the stylesheet', function (): void {
     $styles = FilamentAsset::getStyles(['phoenix1331/filament-jev-moderation']);
@@ -29,4 +30,19 @@ it('styles only its own fi-jev-moderation classes', function (): void {
 
 it('loads its translations', function (): void {
     expect(__('filament-jev-moderation::navigation.group'))->toBe('Moderation');
+});
+
+it('defines every fi-jev-moderation class the views use', function (): void {
+    $css = (string) file_get_contents(FilamentJevModerationServiceProvider::stylesheet());
+    $used = [];
+
+    foreach (Finder::create()->files()->in(dirname(__DIR__, 2).'/resources/views')->name('*.blade.php') as $view) {
+        preg_match_all('/fi-jev-moderation-[a-z0-9-]+/', $view->getContents(), $matches);
+        array_push($used, ...$matches[0]);
+    }
+
+    $missing = array_values(array_filter(array_unique($used), fn (string $class): bool => ! str_contains($css, ".{$class}")));
+
+    expect($used)->not->toBeEmpty()
+        ->and($missing)->toBe([]);
 });
