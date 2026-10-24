@@ -1,5 +1,8 @@
 {
     "preset": "laravel",
+    "exclude": [
+        "test-app"
+    ],
     "rules": {
         "declare_strict_types": true
     }

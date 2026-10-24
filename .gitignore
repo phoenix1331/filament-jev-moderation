@@ -4,6 +4,7 @@
 /coverage
 /.phpunit.cache
 /test-app
+/.playwright-mcp
 package-lock.json
 composer.lock
 .phpunit.result.cache

@@ -7,12 +7,10 @@ return [
     'model_label' => 'queued item',
     'plural_model_label' => 'Review queue',
     'columns' => [
-        'model' => 'Type',
         'excerpt' => 'Content',
         'author' => 'Author',
         'category' => 'Category',
         'confidence' => 'Confidence',
-        'source' => 'Source',
         'age' => 'Waiting',
     ],
     'filters' => [

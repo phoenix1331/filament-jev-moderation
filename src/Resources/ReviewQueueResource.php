@@ -30,6 +30,9 @@ use Phoenix1331\FilamentJevModeration\Resources\ReviewQueueResource\Pages\ListRe
 use Phoenix1331\FilamentJevModeration\Resources\ReviewQueueResource\Pages\ViewDecisionHistory;
 use Phoenix1331\FilamentJevModeration\Resources\ReviewQueueResource\ReviewActions;
 use Phoenix1331\FilamentJevModeration\Support\DisplayName;
+use Phoenix1331\FilamentJevModeration\Widgets\CalibrationTable;
+use Phoenix1331\FilamentJevModeration\Widgets\DecisionVolumeChart;
+use Phoenix1331\FilamentJevModeration\Widgets\ModerationOverview;
 use Phoenix1331\JevModeration\Enums\ModerationSource;
 use Phoenix1331\JevModeration\Models\ModerationDecision;
 
@@ -146,12 +149,11 @@ class ReviewQueueResource extends Resource
 
         return $table
             ->columns([
-                TextColumn::make('moderatable_type')
-                    ->label(__('filament-jev-moderation::queue.columns.model'))
-                    ->formatStateUsing(static fn (string $state): string => JevModerationPlugin::get()->getModelLabel($state)),
+                // The type sits above the content, not in its own column, so the table fits beside an open sidebar.
                 TextColumn::make('excerpt')
                     ->label(__('filament-jev-moderation::queue.columns.excerpt'))
                     ->state(static fn (ModerationDecision $record): ?string => self::excerpt($record))
+                    ->description(static fn (ModerationDecision $record): string => JevModerationPlugin::get()->getModelLabel($record->moderatable_type), position: 'above')
                     ->wrap(),
                 TextColumn::make('author')
                     ->label(__('filament-jev-moderation::queue.columns.author'))
@@ -161,18 +163,14 @@ class ReviewQueueResource extends Resource
                     ->label(__('filament-jev-moderation::queue.columns.category'))
                     ->state(static fn (ModerationDecision $record): ?string => self::queuedCategory($record))
                     ->formatStateUsing(static fn (string $state): string => self::categoryLabel($state))
+                    // The source sits under the category, not in its own column, so the table fits beside an open sidebar.
+                    ->description(static fn (ModerationDecision $record): string => self::sourceLine($record))
                     ->badge()
                     ->color('danger'),
                 TextColumn::make('confidence')
                     ->label(__('filament-jev-moderation::queue.columns.confidence'))
                     ->formatStateUsing(static fn (float|int|string $state): string => Number::percentage((float) $state * 100) ?: '')
                     ->sortable(),
-                TextColumn::make('source')
-                    ->label(__('filament-jev-moderation::queue.columns.source'))
-                    ->formatStateUsing(static fn (ModerationSource $state): string => __("filament-jev-moderation::sources.{$state->value}"))
-                    ->description(static fn (ModerationDecision $record): ?string => $record->source === ModerationSource::Report ? $record->note : null)
-                    ->badge()
-                    ->color(static fn (ModerationSource $state): string => $state === ModerationSource::Report ? 'warning' : 'gray'),
                 TextColumn::make('created_at')
                     ->label(__('filament-jev-moderation::queue.columns.age'))
                     ->since()
@@ -248,6 +246,16 @@ class ReviewQueueResource extends Resource
             'view' => ViewDecisionHistory::route('/{record}'),
             'author' => AuthorHistory::route('/authors/{author}'),
         ];
+    }
+
+    /**
+     * The widgets on the queue page. Filament 4 registers a resource's widget
+     * components from this list; without it every widget update (lazy load,
+     * filter change) fails with 419.
+     */
+    public static function getWidgets(): array
+    {
+        return [ModerationOverview::class, DecisionVolumeChart::class, CalibrationTable::class];
     }
 
     protected static function queue(): ReviewQueueQuery
@@ -508,5 +516,22 @@ class ReviewQueueResource extends Resource
     public static function categoryLabel(string $category): string
     {
         return Str::ucfirst(str_replace('_', ' ', $category));
+    }
+
+    /**
+     * Where the queued decision came from, with the reporter's reason for a
+     * report: "Jev", or "Report · rude to a new member".
+     *
+     * @internal
+     */
+    public static function sourceLine(ModerationDecision $decision): string
+    {
+        $source = __("filament-jev-moderation::sources.{$decision->source->value}");
+
+        if ($decision->source !== ModerationSource::Report || $decision->note === null || $decision->note === '') {
+            return $source;
+        }
+
+        return "{$source} · {$decision->note}";
     }
 }

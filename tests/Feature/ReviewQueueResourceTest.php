@@ -6,6 +6,7 @@ use Filament\Facades\Filament;
 use Filament\Navigation\NavigationItem;
 use Filament\Panel;
 use Filament\Tables\Filters\SelectFilter;
+use Filament\Widgets\WidgetConfiguration;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -68,6 +69,18 @@ describe('registration', function (): void {
             ->and(ReviewQueueResource::canDeleteAny())->toBeFalse()
             ->and(array_keys(ReviewQueueResource::getPages()))->toBe(['index', 'view', 'author']);
     });
+
+    // Filament 4 registers a resource's widget components from getWidgets(); one missing there renders but every update returns 419.
+    it('declares every widget on the queue page', function (): void {
+        $page = new ListReviewQueue;
+        $widgets = array_map(
+            static fn (string|WidgetConfiguration $widget): string => $widget instanceof WidgetConfiguration ? $widget->widget : $widget,
+            [...$page->getVisibleHeaderWidgets(), ...$page->getVisibleFooterWidgets()],
+        );
+
+        expect($widgets)->not->toBeEmpty()
+            ->and(ReviewQueueResource::getWidgets())->toEqualCanonicalizing(array_unique($widgets));
+    });
 });
 
 describe('access', function (): void {
@@ -104,12 +117,12 @@ describe('columns', function (): void {
 
         livewire(ListReviewQueue::class)
             ->assertCanSeeTableRecords([$flag])
-            ->assertTableColumnFormattedStateSet('moderatable_type', 'Forum post', $flag)
+            ->assertTableColumnHasDescription('excerpt', 'Forum post', $flag, 'above')
             ->assertTableColumnStateSet('excerpt', 'Re: servicing · Only an idiot would pay that much.', $flag)
             ->assertTableColumnStateSet('author', 'Jordan Lee', $flag)
             ->assertTableColumnFormattedStateSet('category', 'Harassment', $flag)
             ->assertTableColumnFormattedStateSet('confidence', '72%', $flag)
-            ->assertTableColumnFormattedStateSet('source', 'Jev', $flag)
+            ->assertTableColumnHasDescription('category', 'Jev', $flag)
             ->assertTableColumnFormattedStateSet('created_at', '3 hours ago', $flag);
     });
 
@@ -117,7 +130,7 @@ describe('columns', function (): void {
         JevModerationPlugin::get()->modelLabels([ForumPost::class => 'Forum thread']);
         $flag = decisionFor(forumPost())->flagged()->create();
 
-        livewire(ListReviewQueue::class)->assertTableColumnFormattedStateSet('moderatable_type', 'Forum thread', $flag);
+        livewire(ListReviewQueue::class)->assertTableColumnHasDescription('excerpt', 'Forum thread', $flag, 'above');
     });
 
     it('shortens long content', function (): void {
@@ -185,8 +198,7 @@ describe('columns', function (): void {
 
         livewire(ListReviewQueue::class)
             ->assertTableColumnFormattedStateSet('category', 'Harassment', $report)
-            ->assertTableColumnFormattedStateSet('source', 'Report', $report)
-            ->assertTableColumnHasDescription('source', 'rude to a new member', $report)
+            ->assertTableColumnHasDescription('category', 'Report · rude to a new member', $report)
             ->assertTableColumnStateSet('confidence', null, $report);
     });
 
