@@ -7,18 +7,23 @@ namespace Phoenix1331\FilamentJevModeration\Resources\ReviewQueueResource;
 use Filament\Actions\Action;
 use Filament\Actions\BulkAction;
 use Filament\Facades\Filament;
+use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Notifications\Notification;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
 use Phoenix1331\FilamentJevModeration\Data\ReviewOutcome;
 use Phoenix1331\FilamentJevModeration\Enums\ReviewAction;
 use Phoenix1331\FilamentJevModeration\JevModerationPlugin;
+use Phoenix1331\FilamentJevModeration\Resources\ReviewQueueResource;
 use Phoenix1331\FilamentJevModeration\Review\QueueReviewer;
+use Phoenix1331\JevModeration\Facades\JevModeration;
 use Phoenix1331\JevModeration\Models\ModerationDecision;
 
 /**
- * Approve and reject, for one queued record or a selection. Each asks for
- * an optional note, records through QueueReviewer and reports what was
+ * Approve and reject, for one queued record or a selection, and reclassify
+ * for one record. Each asks for an optional note (reclassify also for the
+ * corrected category), records through QueueReviewer and reports what was
  * resolved, skipped and refused.
  *
  * @internal
@@ -35,10 +40,11 @@ final class ReviewActions
             ->icon(self::icon($action))
             ->color(self::color($action))
             ->authorize(static fn (ModerationDecision $record): bool => JevModerationPlugin::get()->canReview($action, $record))
+            ->visible(static fn (ModerationDecision $record): bool => $action !== ReviewAction::Reclassify || self::reclassifyOptions($record) !== [])
             ->modalHeading(__("filament-jev-moderation::queue.actions.{$action->value}.modal_heading"))
             ->modalDescription(__("filament-jev-moderation::queue.actions.{$action->value}.modal_description"))
             ->modalSubmitActionLabel(__("filament-jev-moderation::queue.actions.{$action->value}.label"))
-            ->schema(self::noteField())
+            ->schema($action === ReviewAction::Reclassify ? [self::categoryField(), ...self::noteField()] : self::noteField())
             ->action(static function (ModerationDecision $record, array $data) use ($action): void {
                 self::notify($action, self::review([$record], $action, $data));
             });
@@ -62,6 +68,42 @@ final class ReviewActions
     }
 
     /**
+     * The harmful choices of the record's policy other than the category it
+     * was queued under, keyed by name. Empty when its policy was removed.
+     *
+     * @return array<string, string>
+     */
+    public static function reclassifyOptions(ModerationDecision $decision): array
+    {
+        $record = $decision->getRelationValue('moderatable');
+        $name = $record instanceof Model && method_exists($record, 'moderationPolicy') ? $record->moderationPolicy() : null;
+
+        if (! is_string($name) || ! in_array($name, JevModeration::policies(), true)) {
+            return [];
+        }
+
+        $policy = JevModeration::policy($name);
+        $current = ReviewQueueResource::queuedCategory($decision);
+        $options = [];
+
+        foreach (array_keys($policy->choices) as $choice) {
+            if ($choice !== $policy->safeChoice && $choice !== $current) {
+                $options[$choice] = ReviewQueueResource::categoryLabel($choice);
+            }
+        }
+
+        return $options;
+    }
+
+    private static function categoryField(): Select
+    {
+        return Select::make('category')
+            ->label(__('filament-jev-moderation::queue.actions.reclassify.category'))
+            ->options(static fn (ModerationDecision $record): array => self::reclassifyOptions($record))
+            ->required();
+    }
+
+    /**
      * @return list<Textarea>
      */
     private static function noteField(): array
@@ -82,9 +124,15 @@ final class ReviewActions
     private static function review(iterable $decisions, ReviewAction $action, array $data): ReviewOutcome
     {
         $note = $data['note'] ?? null;
+        $category = $data['category'] ?? null;
 
-        return (new QueueReviewer(JevModerationPlugin::get()))
-            ->review($decisions, $action, is_string($note) ? $note : null, Filament::auth()->user());
+        return (new QueueReviewer(JevModerationPlugin::get()))->review(
+            $decisions,
+            $action,
+            is_string($note) ? $note : null,
+            Filament::auth()->user(),
+            is_string($category) ? $category : null,
+        );
     }
 
     private static function notify(ReviewAction $action, ReviewOutcome $outcome): void
@@ -118,11 +166,19 @@ final class ReviewActions
 
     private static function icon(ReviewAction $action): string
     {
-        return $action === ReviewAction::Approve ? 'heroicon-o-check' : 'heroicon-o-x-mark';
+        return match ($action) {
+            ReviewAction::Approve => 'heroicon-o-check',
+            ReviewAction::Reject => 'heroicon-o-x-mark',
+            ReviewAction::Reclassify => 'heroicon-o-tag',
+        };
     }
 
     private static function color(ReviewAction $action): string
     {
-        return $action === ReviewAction::Approve ? 'success' : 'danger';
+        return match ($action) {
+            ReviewAction::Approve => 'success',
+            ReviewAction::Reject => 'danger',
+            ReviewAction::Reclassify => 'warning',
+        };
     }
 }

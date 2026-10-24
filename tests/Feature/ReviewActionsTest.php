@@ -176,6 +176,93 @@ describe('bulk actions', function (): void {
     });
 });
 
+describe('reclassify', function (): void {
+    it('removes the content under the corrected category, through the core', function (): void {
+        Event::fake([ReviewResolved::class]);
+        $flag = decisionFor(forumPost())->flagged('harassment', 0.62)->create();
+
+        livewire(ListReviewQueue::class)
+            ->callTableAction('reclassify', $flag, ['category' => 'hate', 'note' => 'slur in the second line'])
+            ->assertHasNoTableActionErrors()
+            ->assertNotified('Reclassified 1 item')
+            ->assertCountTableRecords(0);
+
+        $review = latestDecisionOf($flag);
+
+        expect($review->status)->toBe(ModerationStatus::Rejected)
+            ->and($review->source)->toBe(ModerationSource::Human)
+            ->and($review->category)->toBe('hate')
+            ->and($review->note)->toBe('slur in the second line')
+            ->and($review->reviewed_by_id)->toBe($this->moderator->getKey());
+
+        Event::assertDispatched(ReviewResolved::class, fn (ReviewResolved $event): bool => $event->decision->is($review));
+    });
+
+    it('offers the harmful choices of the record\'s policy, except the one it was queued under', function (): void {
+        $post = decisionFor(forumPost())->flagged('harassment', 0.62)->create();
+        $message = decisionFor(ChatMessage::factory()->createQuietly())->flagged('spam', 0.7)->create();
+
+        $page = livewire(ListReviewQueue::class);
+        $records = $page->instance()->getTable()->getRecords()->keyBy('id');
+
+        expect(ReviewActions::reclassifyOptions($records[$post->id]))->toBe([
+            'spam' => 'Spam',
+            'hate' => 'Hate',
+            'personal_data' => 'Personal data',
+            'off_topic' => 'Off topic',
+        ])->and(ReviewActions::reclassifyOptions($records[$message->id]))->toBe([
+            'harassment' => 'Harassment',
+            'hate' => 'Hate',
+            'sexual' => 'Sexual',
+            'personal_data' => 'Personal data',
+        ]);
+    });
+
+    it('leaves out the category Jev gave before a report', function (): void {
+        $post = forumPost();
+        decisionFor($post)->passed('spam', 0.4)->create();
+        $report = decisionFor($post)->reported()->create();
+
+        $record = livewire(ListReviewQueue::class)->instance()->getTable()->getRecords()->firstOrFail();
+
+        expect($record->is($report))->toBeTrue()
+            ->and(array_keys(ReviewActions::reclassifyOptions($record)))->toBe(['harassment', 'hate', 'personal_data', 'off_topic']);
+    });
+
+    it('needs a category from the options', function (string $category, string $rule): void {
+        $flag = decisionFor(forumPost())->flagged('harassment', 0.62)->create();
+
+        livewire(ListReviewQueue::class)
+            ->callTableAction('reclassify', $flag, ['category' => $category])
+            ->assertHasTableActionErrors(['category' => $rule]);
+
+        expect(latestDecisionOf($flag)->is($flag))->toBeTrue();
+    })->with([
+        'missing' => ['', 'required'],
+        'the safe choice' => ['fine', 'in'],
+        'the queued category' => ['harassment', 'in'],
+        'another policy\'s choice' => ['sexual', 'in'],
+    ]);
+
+    it('is hidden when the record\'s policy was removed from config', function (): void {
+        $flag = decisionFor(forumPost())->flagged()->create();
+        config(['jev-moderation.policies' => Arr::except((array) config('jev-moderation.policies'), 'community')]);
+
+        livewire(ListReviewQueue::class)
+            ->assertTableActionHidden('reclassify', $flag)
+            ->assertTableActionVisible('reject', $flag);
+    });
+
+    it('is hidden from a moderator who may not reclassify', function (): void {
+        JevModerationPlugin::get()->authorizeActionsUsing(fn (ReviewAction $action): bool => $action !== ReviewAction::Reclassify);
+        $flag = decisionFor(forumPost())->flagged()->create();
+
+        livewire(ListReviewQueue::class)
+            ->assertTableActionHidden('reclassify', $flag)
+            ->assertTableActionVisible('reject', $flag);
+    });
+});
+
 describe('reviewer', function (): void {
     it('skips a record whose latest decision moved since the page loaded', function (): void {
         $post = forumPost();
@@ -221,6 +308,23 @@ describe('reviewer', function (): void {
         expect($outcome->resolved)->toBe(0)
             ->and($outcome->failures)->toHaveCount(1)
             ->and($outcome->failures[0])->toStartWith('No moderation policy named [community]');
+    });
+
+    it('refuses to reclassify without a category', function (?string $category): void {
+        $flag = decisionFor(forumPost())->flagged()->create();
+
+        expect(fn (): ReviewOutcome => reviewer()->review([$flag], ReviewAction::Reclassify, user: $this->moderator, category: $category))
+            ->toThrow(InvalidArgumentException::class, 'Reclassifying needs a category.');
+    })->with([null, '']);
+
+    it('reports a category the core rejects', function (): void {
+        $flag = decisionFor(forumPost())->flagged()->create();
+
+        $outcome = reviewer()->review([$flag], ReviewAction::Reclassify, user: $this->moderator, category: 'fine');
+
+        expect($outcome->resolved)->toBe(0)
+            ->and($outcome->failures[0])->toStartWith('Category [fine] is not a harmful choice')
+            ->and(latestDecisionOf($flag)->is($flag))->toBeTrue();
     });
 
     it('records no moderator for a user that is not a model', function (): void {

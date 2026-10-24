@@ -15,7 +15,8 @@ use Phoenix1331\FilamentJevModeration\JevModerationPlugin;
 use Phoenix1331\JevModeration\Models\ModerationDecision;
 
 /**
- * Approves or rejects queued records through the core's Moderatable API,
+ * Approves, rejects or reclassifies queued records through the core's
+ * Moderatable API (reclassify = reject under a corrected category),
  * which appends the human decision and fires ReviewResolved. This plugin
  * never writes a decision itself.
  *
@@ -31,9 +32,16 @@ final readonly class QueueReviewer
 
     /**
      * @param  iterable<ModerationDecision>  $decisions  the queue rows acted on
+     * @param  string|null  $category  the corrected category; required to reclassify, ignored otherwise
+     *
+     * @throws InvalidArgumentException when reclassifying without a category
      */
-    public function review(iterable $decisions, ReviewAction $action, ?string $note = null, ?Authenticatable $user = null): ReviewOutcome
+    public function review(iterable $decisions, ReviewAction $action, ?string $note = null, ?Authenticatable $user = null, ?string $category = null): ReviewOutcome
     {
+        if ($action === ReviewAction::Reclassify && ($category === null || $category === '')) {
+            throw new InvalidArgumentException('Reclassifying needs a category.');
+        }
+
         $outcome = new ReviewOutcome;
         $note = $note === null || trim($note) === '' ? null : trim($note);
 
@@ -45,9 +53,9 @@ final readonly class QueueReviewer
             }
 
             try {
-                $resolved = DB::transaction(fn (): bool => $this->resolve($decision, $action, $note, $user));
+                $resolved = DB::transaction(fn (): bool => $this->resolve($decision, $action, $note, $user, $category));
             } catch (InvalidArgumentException $exception) {
-                // The record's policy was removed from config, or a category is no longer valid.
+                // The record's policy was removed from config, or the category is not one of its harmful choices.
                 $outcome = $outcome->withFailure($exception->getMessage());
 
                 continue;
@@ -59,7 +67,7 @@ final readonly class QueueReviewer
         return $outcome;
     }
 
-    private function resolve(ModerationDecision $decision, ReviewAction $action, ?string $note, ?Authenticatable $user): bool
+    private function resolve(ModerationDecision $decision, ReviewAction $action, ?string $note, ?Authenticatable $user, ?string $category): bool
     {
         $record = $this->lockedRecord($decision);
         $method = $action === ReviewAction::Approve ? 'approve' : 'reject';
@@ -68,7 +76,10 @@ final readonly class QueueReviewer
             return false;
         }
 
-        $record->{$method}($user instanceof Model ? $user : null, $note);
+        $moderator = $user instanceof Model ? $user : null;
+
+        // The core validates the category against the record's policy and writes nothing if it is not a harmful choice.
+        $record->{$method}(...($action === ReviewAction::Reclassify ? [$moderator, $note, $category] : [$moderator, $note]));
 
         return true;
     }

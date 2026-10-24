@@ -49,6 +49,14 @@ return [
             'done' => '{1} Rejected :count item|[2,*] Rejected :count items',
             'none' => 'Nothing was rejected',
         ],
+        'reclassify' => [
+            'label' => 'Reclassify',
+            'modal_heading' => 'Reclassify and remove this content',
+            'modal_description' => 'Jev picked the wrong category, but the content should still go. It is removed under the category you choose, and the review is recorded with your name.',
+            'category' => 'Correct category',
+            'done' => '{1} Reclassified :count item|[2,*] Reclassified :count items',
+            'none' => 'Nothing was reclassified',
+        ],
         'note' => [
             'label' => 'Note',
             'helper' => 'Optional. Kept with the decision in its history.',

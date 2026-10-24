@@ -155,7 +155,7 @@ class ReviewQueueResource extends Resource
                     ->state(static fn (ModerationDecision $record): ?string => self::authorName($record)),
                 TextColumn::make('category')
                     ->label(__('filament-jev-moderation::queue.columns.category'))
-                    ->state(static fn (ModerationDecision $record): ?string => self::category($record))
+                    ->state(static fn (ModerationDecision $record): ?string => self::queuedCategory($record))
                     ->formatStateUsing(static fn (string $state): string => self::categoryLabel($state))
                     ->badge()
                     ->color('danger'),
@@ -225,6 +225,7 @@ class ReviewQueueResource extends Resource
             ->recordActions([
                 ReviewActions::row(ReviewAction::Approve),
                 ReviewActions::row(ReviewAction::Reject),
+                ReviewActions::row(ReviewAction::Reclassify),
             ])
             ->toolbarActions([
                 ReviewActions::bulk(ReviewAction::Approve),
@@ -467,8 +468,10 @@ class ReviewQueueResource extends Resource
     /**
      * The deciding category, or for a report the category of the Jev
      * result before it.
+     *
+     * @internal
      */
-    protected static function category(ModerationDecision $decision): ?string
+    public static function queuedCategory(ModerationDecision $decision): ?string
     {
         $category = $decision->category ?? $decision->getAttribute('jev_category');
 
@@ -477,8 +480,10 @@ class ReviewQueueResource extends Resource
 
     /**
      * A category name in sentence case: `personal_data` reads "Personal data".
+     *
+     * @internal
      */
-    private static function categoryLabel(string $category): string
+    public static function categoryLabel(string $category): string
     {
         return Str::ucfirst(str_replace('_', ' ', $category));
     }
