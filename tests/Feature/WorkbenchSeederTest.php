@@ -3,6 +3,9 @@
 declare(strict_types=1);
 
 use Illuminate\Support\Carbon;
+use Phoenix1331\FilamentJevModeration\JevModerationPlugin;
+use Phoenix1331\FilamentJevModeration\Queries\CalibrationPairs;
+use Phoenix1331\FilamentJevModeration\Support\CalibrationCalculator;
 use Phoenix1331\JevModeration\Enums\ModerationSource;
 use Phoenix1331\JevModeration\Enums\ModerationStatus;
 use Phoenix1331\JevModeration\Models\ModerationDecision;
@@ -55,6 +58,16 @@ it('seeds a complete, deterministic demo', function (): void {
 
     expect($results->pluck('model')->unique()->sort()->values()->all())->toBe(['jev-1.13.0', 'jev-1.14.0'])
         ->and($results->contains(fn (ModerationDecision $decision): bool => ($decision->meta['reason'] ?? null) === 'low_confidence'))->toBeTrue();
+
+    // Enough reviews of the newest Jev version for calibration to flag a band, with the default options.
+    JevModerationPlugin::get()->authorize(true);
+    $calibration = (new CalibrationCalculator(JevModerationPlugin::DEFAULT_OVERRIDE_WARNING_RATE, JevModerationPlugin::DEFAULT_MINIMUM_SAMPLE))
+        ->calculate((new CalibrationPairs(JevModerationPlugin::get()))->get());
+
+    expect($calibration->model)->toBe('jev-1.14.0')
+        ->and($calibration->models)->toContain('jev-1.13.0')
+        ->and($calibration->flagged())->not->toBeEmpty()
+        ->and(array_filter($calibration->bands, fn ($band): bool => $band->advice === null && $band->sample() > 0))->not->toBeEmpty();
 
     // The history of deleted content stays.
     $orphans = ModerationDecision::query()
