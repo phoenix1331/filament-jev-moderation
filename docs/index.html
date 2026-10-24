@@ -1,0 +1,525 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Jev Moderation for Filament</title>
+<meta name="description" content="A Filament review queue for Jev Moderation: approve, reject and reclassify flagged content, trace every decision, and see whether your thresholds match what your moderators actually decide.">
+<meta property="og:title" content="Jev Moderation for Filament">
+<meta property="og:description" content="Review flagged content, trace every decision, and calibrate your Jev thresholds against what your moderators actually decide.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://phoenix1331.github.io/filament-jev-moderation/">
+<meta property="og:image" content="https://phoenix1331.github.io/filament-jev-moderation/screenshots/plugin-directory.jpg">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2314213d'/%3E%3Crect x='6' y='8' width='20' height='4' rx='2' fill='%2338b26e'/%3E%3Crect x='6' y='14' width='14' height='4' rx='2' fill='%23e3a51a'/%3E%3Crect x='6' y='20' width='8' height='4' rx='2' fill='%23e5484d'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #F6F7F9;
+    --paper: #FFFFFF;
+    --ink: #14213D;
+    --ink-soft: #4B5873;
+    --rule: #DCE1EA;
+    --passed: #2E9E5E;
+    --flagged: #C98A0B;
+    --blocked: #D6363B;
+    --accent: #2F5FD0;
+    --code-bg: #14213D;
+    --code-ink: #E9EDF5;
+    --hatch: #E7EAF1;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      color-scheme: dark;
+      --bg: #0F1729;
+      --paper: #17223A;
+      --ink: #E9EDF5;
+      --ink-soft: #A7B3C8;
+      --rule: #2C3A57;
+      --passed: #4CC383;
+      --flagged: #EBB43A;
+      --blocked: #F06469;
+      --accent: #7EA2F2;
+      --code-bg: #0A1020;
+      --code-ink: #E9EDF5;
+      --hatch: #26324D;
+    }
+  }
+
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: "Archivo", system-ui, sans-serif; font-size: 1.0625rem; line-height: 1.6;
+  }
+  a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 3px; }
+  a:hover { text-decoration-thickness: 2px; }
+  :focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; border-radius: 2px; }
+
+  .wrap { max-width: 72rem; margin: 0 auto; padding: 0 1rem; }
+  .measure { max-width: 44rem; }
+  h1, h2, h3 { font-variation-settings: "wdth" 125; line-height: 1.1; letter-spacing: -0.01em; }
+  h1 { font-size: clamp(2.25rem, 6vw, 4rem); font-weight: 800; margin: 0 0 1.25rem; max-width: 18ch; }
+  h2 { font-size: clamp(1.5rem, 3vw, 2.125rem); font-weight: 750; margin: 0 0 1rem; }
+  h3 { font-size: 1.125rem; font-weight: 700; margin: 2rem 0 0.5rem; }
+  p { margin: 0 0 1rem; }
+  ul { margin: 0 0 1rem; padding-left: 1.25rem; }
+  li { margin-bottom: 0.35rem; }
+  .lede { font-size: 1.25rem; color: var(--ink-soft); max-width: 40rem; }
+  .soft { color: var(--ink-soft); }
+
+  header.site { padding: 1.25rem 0; }
+  header.site .wrap { display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; }
+  .brand { font-weight: 800; font-variation-settings: "wdth" 125; text-decoration: none; font-size: 1.125rem; display: inline-flex; align-items: center; gap: 0.6rem; }
+  .brand svg { width: 1.75rem; height: 1.75rem; }
+  .brand small { font-weight: 600; color: var(--ink-soft); font-variation-settings: "wdth" 100; }
+  nav.links { display: flex; gap: 1.25rem; flex-wrap: wrap; font-size: 0.9375rem; }
+
+  .hero { padding-top: 2.5rem; padding-bottom: 2.5rem; }
+  .install {
+    display: inline-flex; align-items: center; gap: 0.75rem; margin: 0.5rem 0 2.5rem;
+    background: var(--code-bg); color: var(--code-ink); border-radius: 6px; padding: 0.75rem 0.75rem 0.75rem 1rem;
+    font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 0.9375rem; max-width: 100%; overflow-x: auto;
+  }
+  .install code { background: none; padding: 0; font-size: inherit; color: inherit; }
+  .install button {
+    font: inherit; font-family: "Archivo", sans-serif; font-size: 0.875rem; font-weight: 600;
+    background: var(--code-ink); color: var(--code-bg); border: 0; border-radius: 4px; padding: 0.35rem 0.75rem; cursor: pointer;
+  }
+  .shot { margin: 0; border: 1px solid var(--rule); border-radius: 10px; overflow: hidden; background: var(--paper); }
+  .shot img { display: block; width: 100%; height: auto; }
+  figcaption { font-size: 0.875rem; color: var(--ink-soft); padding: 0.6rem 1rem; border-top: 1px solid var(--rule); }
+  .shots { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 30rem), 1fr)); gap: 1.5rem; margin: 1.5rem 0; align-items: start; }
+
+  section { padding: 3.5rem 0; border-top: 1px solid var(--rule); }
+
+  .outcomes { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: 1rem; margin: 1.5rem 0 0; }
+  .outcome { background: var(--paper); border: 1px solid var(--rule); border-radius: 10px; padding: 1.25rem; border-top: 4px solid var(--c); }
+  .outcome h3 { margin: 0 0 0.4rem; color: var(--c); }
+  .outcome p { margin: 0; color: var(--ink-soft); font-size: 0.9375rem; }
+
+  /* The calibration explorer: the one bold element on the page */
+  .explorer { background: var(--paper); border: 1px solid var(--rule); border-radius: 10px; padding: 1.5rem; max-width: 46rem; margin: 1.5rem 0; }
+  .explorer-head { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 0.5rem 1.5rem; margin-bottom: 2.25rem; }
+  .explorer-head strong { font-size: 1.5rem; font-variation-settings: "wdth" 115; font-variant-numeric: tabular-nums; }
+  .track {
+    position: relative; height: 3.5rem; border-radius: 6px; border: 1px solid var(--rule); overflow: visible;
+    background: repeating-linear-gradient(135deg, transparent 0 9px, var(--hatch) 9px 11px), var(--paper);
+  }
+  .fill { position: absolute; inset: 0 auto 0 0; border-radius: 5px 0 0 5px; background: var(--fill, var(--passed)); transition: width 120ms ease-out, background 120ms; }
+  .line { position: absolute; top: -8px; bottom: -8px; width: 0; border-left: 3px dashed var(--c); }
+  .line span { position: absolute; top: -1.5rem; left: -3.5rem; width: 7rem; text-align: center; font-size: 0.8125rem; font-weight: 700; color: var(--c); }
+  .control { display: grid; grid-template-columns: minmax(7rem, auto) 1fr 2.5rem; align-items: center; gap: 1rem; margin-top: 1.25rem; }
+  .control:first-of-type { margin-top: 2.5rem; }
+  .control label { font-weight: 600; }
+  .control output { font-variant-numeric: tabular-nums; text-align: right; }
+  input[type="range"] { width: 100%; accent-color: var(--accent); }
+  .verdict { margin: 1.25rem 0 0; padding: 0.875rem 1rem; border-radius: 6px; font-weight: 600; border-left: 4px solid var(--c); background: color-mix(in srgb, var(--c) 12%, var(--paper)); }
+  .verdict code { font-weight: 400; }
+  .explorer-note { margin: 0.75rem 0 0; font-size: 0.875rem; color: var(--ink-soft); }
+
+  code, pre { font-family: "JetBrains Mono", ui-monospace, monospace; }
+  :not(pre) > code { font-size: 0.9em; background: color-mix(in srgb, var(--ink) 8%, transparent); padding: 0.1em 0.35em; border-radius: 4px; }
+  pre {
+    background: var(--code-bg); color: var(--code-ink); padding: 1.125rem 1.25rem; border-radius: 8px;
+    overflow-x: auto; font-size: 0.875rem; line-height: 1.6; margin: 0 0 1.25rem; max-width: 48rem;
+  }
+  .c { color: #8A97B0; }
+
+  .table-scroll { overflow-x: auto; margin: 0 0 1.25rem; max-width: 56rem; }
+  table { border-collapse: collapse; width: 100%; font-size: 0.9375rem; }
+  th, td { text-align: left; padding: 0.55rem 0.75rem; border-bottom: 1px solid var(--rule); vertical-align: top; }
+  th { font-weight: 700; white-space: nowrap; }
+  td code { white-space: nowrap; }
+
+  .card { background: var(--paper); border: 1px solid var(--rule); border-radius: 10px; padding: 1.25rem; max-width: 34rem; }
+  .card h3 { margin-top: 0; }
+
+  footer { padding: 2.5rem 0 3rem; border-top: 1px solid var(--rule); font-size: 0.9375rem; color: var(--ink-soft); }
+  footer .wrap { display: flex; gap: 1.25rem; flex-wrap: wrap; justify-content: space-between; }
+  footer nav { display: flex; gap: 1.25rem; flex-wrap: wrap; }
+
+  @media (prefers-reduced-motion: reduce) { .fill { transition: none; } }
+</style>
+</head>
+<body>
+
+<header class="site">
+  <div class="wrap">
+    <a class="brand" href="#top">
+      <svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7" fill="#14213d"/><rect x="6" y="8" width="20" height="4" rx="2" fill="#38b26e"/><rect x="6" y="14" width="14" height="4" rx="2" fill="#e3a51a"/><rect x="6" y="20" width="8" height="4" rx="2" fill="#e5484d"/></svg>
+      Jev Moderation <small>for Filament</small>
+    </a>
+    <nav class="links" aria-label="Sections">
+      <a href="#quick-start">Quick start</a>
+      <a href="#review">Review</a>
+      <a href="#calibration">Calibration</a>
+      <a href="#authorisation">Authorisation</a>
+      <a href="#options">Options</a>
+      <a href="https://github.com/phoenix1331/filament-jev-moderation">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="top">
+  <div class="wrap hero">
+    <h1>A review queue that checks its own thresholds</h1>
+    <p class="lede">Approve, reject and reclassify what Jev flagged, trace every decision back to the probabilities behind it, and see where your moderators keep disagreeing with your thresholds.</p>
+    <div class="install">
+      <code id="install-cmd">composer require phoenix1331/filament-jev-moderation</code>
+      <button type="button" id="copy" aria-label="Copy the install command">Copy</button>
+    </div>
+    <figure class="shot">
+      <picture>
+        <source srcset="screenshots/queue-top-dark.png" media="(prefers-color-scheme: dark)">
+        <img src="screenshots/queue-top-light.png" width="1400" height="900" alt="The review queue: stat tiles for items waiting, blocks today, median time to review and override rate, above a table of flagged forum posts and chat messages with approve, reject and reclassify buttons, author, category, confidence and time waiting.">
+      </picture>
+      <figcaption>The review queue on the seeded demo: forum posts and chat messages from two moderated models, most confident first.</figcaption>
+    </figure>
+  </div>
+
+  <section id="why">
+    <div class="wrap">
+      <h2>Why a queue that measures itself</h2>
+      <div class="measure">
+        <p><a href="https://phoenix1331.github.io/laravel-jev-moderation/">Jev Moderation for Laravel</a> sends content to Jev and gets back a probability for every category, then your thresholds decide: pass, flag for a person, or block. The thresholds are a guess until people check Jev's work. This plugin is where they do it.</p>
+        <p>Every review is recorded through the core, next to the result it judged, so the plugin can pair them up. Group those pairs by how confident Jev was, and a band where moderators overturn most flags is a threshold set too low. The plugin says which threshold, by how much, and which command re-checks the affected content. Nothing changes your config for you: it is read-only advice, backed by your own moderators' decisions.</p>
+      </div>
+      <div class="outcomes">
+        <div class="outcome" style="--c: var(--flagged)"><h3>Review</h3><p>One queue across every moderated model. Approve, reject or reclassify one record or a selection, with a note.</p></div>
+        <div class="outcome" style="--c: var(--accent)"><h3>Trace</h3><p>Each record's full history: every Jev result with its probabilities, every report, review and rescan.</p></div>
+        <div class="outcome" style="--c: var(--passed)"><h3>Calibrate</h3><p>Override rates per confidence band, with the threshold change and rescan command each problem band suggests.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="quick-start">
+    <div class="wrap">
+      <h2>Quick start</h2>
+      <p class="measure">Set up <a href="https://phoenix1331.github.io/laravel-jev-moderation/#quick-start">Jev Moderation for Laravel</a> first: the plugin reads its decisions and records reviews through it. Then install the plugin and publish its stylesheet:</p>
+      <pre><code>composer require phoenix1331/filament-jev-moderation
+php artisan filament:assets</code></pre>
+      <p class="measure">Register it on a panel, and say who may use it:</p>
+      <pre><code>use Phoenix1331\FilamentJevModeration\JevModerationPlugin;
+
+public function panel(Panel $panel): Panel
+{
+    return $panel
+        <span class="c">// ...</span>
+        ->plugin(
+            JevModerationPlugin::make()
+                ->authorize(fn (User $user): bool => $user->can('moderate')),
+        );
+}</code></pre>
+      <p class="measure">A <strong>Moderation</strong> group appears with the review queue and the thresholds page. Every model using the core's <code>Moderatable</code> trait that has decisions is included. Without <code>authorize()</code> the pages open in the <code>local</code> environment only.</p>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>Requires</th><th>Versions</th></tr></thead>
+          <tbody>
+            <tr><td>PHP</td><td>8.3 or newer</td></tr>
+            <tr><td>Laravel</td><td>12 or 13</td></tr>
+            <tr><td>Filament</td><td>4 or 5</td></tr>
+            <tr><td><code>phoenix1331/laravel-jev-moderation</code></td><td>0.2</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section id="review">
+    <div class="wrap">
+      <h2>The review workflow</h2>
+      <div class="measure">
+        <p>The queue lists every record whose latest decision is a flag, across every moderated model, most confident first and then longest waiting. Each row shows the content as it is now (including content the site hides), its author, the category with where the flag came from, the confidence and how long it has waited. A user report shows its reason and the category Jev gave before it.</p>
+        <ul>
+          <li><strong>Approve</strong> overturns the flag and shows the content.</li>
+          <li><strong>Reject</strong> upholds it and removes the content.</li>
+          <li><strong>Reclassify</strong> removes it under a corrected category, when Jev picked the wrong one, so calibration counts it fairly.</li>
+        </ul>
+        <p>All three work on one record or a selection across model types, with an optional note. They call the core's <code>approve()</code> and <code>reject()</code>, so the core's <code>ReviewResolved</code> event fires as usual. A record that changed since the page loaded (reviewed by someone else, reported again or rescanned) is skipped, and the notification says how many.</p>
+        <p>Filter by model type, category, confidence range, source and date queued. Clicking a row opens its history; clicking an author opens theirs.</p>
+      </div>
+      <div class="shots">
+        <figure class="shot">
+          <picture>
+            <source srcset="screenshots/decision-history-dark.png" media="(prefers-color-scheme: dark)">
+            <img src="screenshots/decision-history-light.png" width="1400" height="1650" loading="lazy" alt="A chat message's history: content and author, then a moderator's rejection with a note, a rescan that flagged it for sexual content at 55% with every category's probability as a bar, the pending check, and the original pass.">
+          </picture>
+          <figcaption>Decision history: why Jev decided, every probability, and who reviewed it.</figcaption>
+        </figure>
+        <figure class="shot">
+          <picture>
+            <source srcset="screenshots/author-history-dark.png" media="(prefers-color-scheme: dark)">
+            <img src="screenshots/author-history-light.png" width="1400" height="1750" loading="lazy" alt="Jordan Lee's author history: decision counts by status for the last 7 and 30 days, then every decision about their posts and messages, newest first.">
+          </picture>
+          <figcaption>Author history: one person's record across every moderated type.</figcaption>
+        </figure>
+      </div>
+      <p class="measure soft">Each queued record also links to its page in your own Filament resource for the model, when there is one the moderator may view or edit. <code>recordUrlUsing()</code> points it somewhere else.</p>
+    </div>
+  </section>
+
+  <section id="calibration">
+    <div class="wrap">
+      <h2>Calibration, explained</h2>
+      <div class="measure">
+        <p>Each moderator decision is paired with Jev's latest earlier result for the same record, and the pair lands in a 0.1-wide band by Jev's confidence. Per policy, category and band, the plugin counts how many were <strong>checked</strong>, how many moderators <strong>overturned</strong> and <strong>upheld</strong>, and what Jev <strong>missed</strong> (content it passed that a moderator later removed after a report).</p>
+        <p>A band is highlighted when moderators overturned more than 30% of it (<code>overrideWarningRate()</code>) and at least 10 were checked (<code>minimumSample()</code>). Below that sample, a high rate is more likely luck than evidence.</p>
+      </div>
+
+      <div class="explorer">
+        <div class="explorer-head">
+          <span><code>off_topic</code> flags, confidence 0.8 to 0.9</span>
+          <strong id="rate-out">69%</strong>
+        </div>
+        <div class="track" aria-hidden="true">
+          <div class="fill" id="fill" style="width: 69%"></div>
+          <div class="line" style="left: 30%; --c: var(--blocked)"><span>warning 30%</span></div>
+        </div>
+        <div class="control">
+          <label for="checked">Checked</label>
+          <input type="range" id="checked" min="0" max="30" step="1" value="13" aria-describedby="verdict">
+          <output id="checked-out" for="checked">13</output>
+        </div>
+        <div class="control">
+          <label for="overturned">Overturned</label>
+          <input type="range" id="overturned" min="0" max="13" step="1" value="9" aria-describedby="verdict">
+          <output id="overturned-out" for="overturned">9</output>
+        </div>
+        <p class="verdict" id="verdict" role="status" style="--c: var(--blocked)">Moderators overturn most flags in this band: consider raising <code>review_above</code> to 0.90.</p>
+        <p class="explorer-note">The starting numbers are from the seeded demo, where moderators approved 9 of 13 off-topic flags Jev made at 0.8 to 0.9 confidence. Advice is one-sided: reviews only exist for content Jev acted on, so they can show a threshold acting too eagerly, never too late.</p>
+      </div>
+
+      <div class="measure">
+        <p>Mostly overturned flags suggest raising <code>review_above</code> past the band; mostly overturned blocks, raising <code>block_above</code>; overturned low-confidence flags, lowering <code>uncertain_below</code>. Results are shown for the newest Jev version, with a selector for older ones, because a new version can move every band.</p>
+        <p>The thresholds page shows each policy's thresholds from config beside every band, and for each suggestion the command to run after you change config. It names the status the change affects, so content your moderators already approved or rejected is never re-checked:</p>
+      </div>
+      <pre><code>php artisan jev-moderation:rescan "App\Models\ForumPost" --status=flagged</code></pre>
+      <p class="measure soft">The core's <a href="https://phoenix1331.github.io/laravel-jev-moderation/#commands">rescan command</a> also takes <code>--dry-run</code>, <code>--since</code> and <code>--chunk</code>.</p>
+      <div class="shots">
+        <figure class="shot">
+          <picture>
+            <source srcset="screenshots/thresholds-dark.png" media="(prefers-color-scheme: dark)">
+            <img src="screenshots/thresholds-light.png" width="1400" height="1500" loading="lazy" alt="The thresholds page: the community policy's version, uncertain_below and review and block thresholds per category, then every calibration band with one highlighted band suggesting review_above 0.90 and the rescan command to run.">
+          </picture>
+          <figcaption>Thresholds: config and evidence side by side, read-only.</figcaption>
+        </figure>
+        <figure class="shot">
+          <picture>
+            <source srcset="screenshots/widget-calibration-table-dark.png" media="(prefers-color-scheme: dark)">
+            <img src="screenshots/widget-calibration-table-light.png" width="1400" height="380" loading="lazy" alt="The calibration widget below the queue, listing only the highlighted off-topic band with its suggestion.">
+          </picture>
+          <figcaption>Below the queue, only the bands to look at.</figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <section id="widgets">
+    <div class="wrap">
+      <h2>Widgets</h2>
+      <p class="measure">Three widgets frame the queue. Each follows the plugin's authorisation, even when added somewhere else.</p>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>Widget</th><th>Shows</th></tr></thead>
+          <tbody>
+            <tr><td><code>ModerationOverview</code></td><td>Records waiting and the oldest wait, blocks since midnight, median time to review and the override rate over 7 days, counted exactly as <code>jev-moderation:stats</code> counts it. Refreshes every minute</td></tr>
+            <tr><td><code>DecisionVolumeChart</code></td><td>Decisions per day stacked by status, over 7, 30 or 90 days, with each total as text. Colours checked for colour vision deficiency in both themes</td></tr>
+            <tr><td><code>CalibrationTable</code></td><td>Every band per policy and category; under the queue, only the highlighted ones</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="measure">Add the overview to your own dashboard by listing it in your panel's widgets:</p>
+      <pre><code>use Phoenix1331\FilamentJevModeration\Widgets\ModerationOverview;
+
+->widgets([ModerationOverview::class])</code></pre>
+      <div class="shots">
+        <figure class="shot">
+          <picture>
+            <source srcset="screenshots/widget-moderation-overview-dark.png" media="(prefers-color-scheme: dark)">
+            <img src="screenshots/widget-moderation-overview-light.png" width="1400" height="260" loading="lazy" alt="Four stat tiles: 9 waiting with the oldest 3 days, 2 blocked today, a median review time of 20 hours 11 minutes, and a 22% override rate.">
+          </picture>
+          <figcaption><code>ModerationOverview</code></figcaption>
+        </figure>
+        <figure class="shot">
+          <picture>
+            <source srcset="screenshots/widget-decision-volume-chart-dark.png" media="(prefers-color-scheme: dark)">
+            <img src="screenshots/widget-decision-volume-chart-light.png" width="1400" height="520" loading="lazy" alt="A stacked bar chart of decisions per day over 30 days, coloured by passed, approved, flagged, rejected, blocked and check failed, with totals above.">
+          </picture>
+          <figcaption><code>DecisionVolumeChart</code></figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <section id="authorisation">
+    <div class="wrap">
+      <h2>Authorisation</h2>
+      <p class="measure">Two layers, both failing closed. <code>authorize()</code> decides who sees the pages and widgets. Its callback must return exactly <code>true</code>; anything else denies. Pages return 403 on every request and widgets on every update, not only in navigation.</p>
+      <p class="measure">Review actions are checked on top, per record, bulk actions included. In order, the first that is set decides:</p>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>Source</th><th>How</th></tr></thead>
+          <tbody>
+            <tr><td><code>authorizeActionsUsing()</code></td><td>A callback taking <code>$action</code>, <code>$decision</code> and <code>$user</code>, returning exactly <code>true</code></td></tr>
+            <tr><td>A <code>ModerationDecision</code> policy</td><td>The Gate checks the abilities <code>approve</code>, <code>reject</code> and <code>reclassify</code>, so Filament Shield and hand-written policies work</td></tr>
+            <tr><td>Neither</td><td>Anyone <code>authorize()</code> allows may review</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <pre><code>use Phoenix1331\FilamentJevModeration\Enums\ReviewAction;
+
+JevModerationPlugin::make()
+    ->authorize(fn (User $user): bool => $user->can('moderate'))
+    ->authorizeActionsUsing(fn (ReviewAction $action, User $user): bool =>
+        $action === ReviewAction::Approve || $user->can('remove-content'))</code></pre>
+    </div>
+  </section>
+
+  <section id="options">
+    <div class="wrap">
+      <h2>Plugin options</h2>
+      <p class="measure">Every option accepts a closure, and an invalid value fails when the panel boots rather than on a moderator's screen.</p>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>Option</th><th>Default</th><th>Does</th></tr></thead>
+          <tbody>
+            <tr><td><code>authorize()</code></td><td><code>local</code> only</td><td>Who may use the pages and widgets</td></tr>
+            <tr><td><code>authorizeActionsUsing()</code></td><td>policy, else allowed</td><td>Who may approve, reject and reclassify</td></tr>
+            <tr><td><code>models([...])</code></td><td>every type with decisions</td><td>Limit the plugin to some moderated models</td></tr>
+            <tr><td><code>includeBlocked()</code></td><td>off</td><td>Queue automatic blocks as well as flags, so a person sees every removal</td></tr>
+            <tr><td><code>modelLabels([...])</code></td><td>class name in sentence case</td><td>Name model types in columns, filters and headings</td></tr>
+            <tr><td><code>authorRelation()</code></td><td><code>user</code></td><td>The <code>BelongsTo</code> relation naming each record's author</td></tr>
+            <tr><td><code>authorRelations([...])</code></td><td>none</td><td>Per-model exceptions, such as a chat message's <code>sender</code></td></tr>
+            <tr><td><code>recordUrlUsing()</code></td><td>your resource for the model</td><td>Where a record's "View" link goes, or null to hide it</td></tr>
+            <tr><td><code>overrideWarningRate()</code></td><td><code>0.3</code></td><td>Override rate above which a band is highlighted</td></tr>
+            <tr><td><code>minimumSample()</code></td><td><code>10</code></td><td>Reviews a band needs before it can be highlighted</td></tr>
+            <tr><td><code>navigationGroup()</code>, <code>navigationIcon()</code>, <code>navigationSort()</code></td><td>"Moderation", each page's own icon, none</td><td>Where the pages sit; a null group lists them ungrouped</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <pre><code>JevModerationPlugin::make()
+    ->authorize(fn (User $user): bool => $user->can('moderate'))
+    ->models([ForumPost::class, ChatMessage::class])
+    ->includeBlocked()
+    ->modelLabels([ForumPost::class => 'Forum thread'])
+    ->authorRelations([ChatMessage::class => 'sender'])
+    ->recordUrlUsing(fn (ForumPost $record): string => route('forum.posts.show', $record))
+    ->overrideWarningRate(0.25)
+    ->minimumSample(20)
+    ->navigationGroup('Trust and safety')</code></pre>
+    </div>
+  </section>
+
+  <section id="customising">
+    <div class="wrap">
+      <h2>Labels and excerpts</h2>
+      <div class="measure">
+        <p>Every string the plugin shows is translatable. Publish the English files and edit them in place, or copy them to another locale:</p>
+      </div>
+      <pre><code>php artisan vendor:publish --tag=filament-jev-moderation-translations</code></pre>
+      <div class="measure">
+        <p>Model types are named with <code>modelLabels()</code>, as above. Categories come from your policies' choice keys in sentence case, so <code>personal_data</code> reads "Personal data".</p>
+        <p>The queue excerpt is the content Jev checked: the model's <code>moderatableContent()</code> (by default its <code>#[Moderate]</code> fields), joined with a dot and cut at 140 characters. Put the field that identifies a record first, such as a title before its body. The history page shows every field in full.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="data">
+    <div class="wrap">
+      <h2>Security and data</h2>
+      <div class="measure">
+        <p><strong>Reads:</strong> the core's <code>moderation_decisions</code> for the models it shows, including notes, the moderator or reporting user, and the stored copy of content when the core keeps one; each record's moderated fields, including content the site hides; authors by name, never email address; and policy thresholds through the core's API, never the API key.</p>
+        <p><strong>Writes:</strong> only reviews, only through the core's <code>approve()</code> and <code>reject()</code>. An architecture test fails the build on any other database write.</p>
+        <p><strong>Sends:</strong> nothing. No HTTP requests, no logging, both enforced by tests. The rescan commands it suggests are shown, never run.</p>
+        <p><strong>Worth knowing:</strong> moderators see harmful content and any personal data in it, so keep <code>authorize()</code> to trained staff; a public server left on <code>APP_ENV=local</code> opens the pages to every panel user; and without a policy or <code>authorizeActionsUsing()</code>, everyone who can see the queue can review. The full list is in <a href="https://github.com/phoenix1331/filament-jev-moderation/blob/main/SECURITY.md">SECURITY.md</a>.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="family">
+    <div class="wrap">
+      <h2>Family</h2>
+      <div class="card">
+        <h3><a href="https://phoenix1331.github.io/laravel-jev-moderation/">laravel-jev-moderation</a></h3>
+        <p class="soft">The core this plugin builds on: confidence-aware moderation for any Eloquent model with Jev, per-category thresholds, and an append-only audit trail. Headless, with commands for install, ping, stats and rescan.</p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>MIT licence. Requires PHP 8.3+, Laravel 12 or 13, and Filament 4 or 5.</span>
+    <nav aria-label="Project links">
+      <a href="https://github.com/phoenix1331/filament-jev-moderation">GitHub</a>
+      <a href="https://packagist.org/packages/phoenix1331/filament-jev-moderation">Packagist</a>
+      <a href="https://github.com/phoenix1331/filament-jev-moderation/blob/main/CHANGELOG.md">Changelog</a>
+      <a href="https://github.com/phoenix1331/filament-jev-moderation/blob/main/LICENSE">Licence</a>
+    </nav>
+  </div>
+</footer>
+
+<script>
+  (function () {
+    var button = document.getElementById('copy');
+    button.addEventListener('click', function () {
+      var text = document.getElementById('install-cmd').textContent;
+      (navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject()).then(function () {
+        button.textContent = 'Copied';
+        setTimeout(function () { button.textContent = 'Copy'; }, 1500);
+      }, function () { button.textContent = 'Select and copy'; });
+    });
+
+    // The same rule as CalibrationCalculator for a flag band: highlighted when
+    // the override rate is above the warning rate and the sample is big enough.
+    var WARNING = 0.30, MINIMUM = 10, UPPER = '0.90';
+    var checked = document.getElementById('checked');
+    var overturned = document.getElementById('overturned');
+    var checkedOut = document.getElementById('checked-out');
+    var overturnedOut = document.getElementById('overturned-out');
+    var rateOut = document.getElementById('rate-out');
+    var fill = document.getElementById('fill');
+    var verdict = document.getElementById('verdict');
+
+    function render() {
+      var n = parseInt(checked.value, 10);
+      overturned.max = n;
+      var o = Math.min(parseInt(overturned.value, 10), n);
+      overturned.value = o;
+      var rate = n === 0 ? null : o / n;
+      var c, html;
+
+      checkedOut.textContent = n;
+      overturnedOut.textContent = o;
+      rateOut.textContent = rate === null ? 'none checked' : Math.round(rate * 100) + '%';
+      fill.style.width = (rate === null ? 0 : rate * 100) + '%';
+
+      if (rate === null) {
+        c = 'var(--ink-soft)';
+        html = 'Nothing reviewed in this band yet, so there is nothing to judge.';
+      } else if (n < MINIMUM) {
+        c = 'var(--ink-soft)';
+        html = 'Not highlighted: ' + n + ' checked is below the minimum sample of ' + MINIMUM + ', so the rate is shown muted.';
+      } else if (rate <= WARNING) {
+        c = 'var(--passed)';
+        html = 'Not highlighted: moderators uphold most flags here, so <code>review_above</code> looks right.';
+      } else {
+        c = 'var(--blocked)';
+        html = 'Moderators overturn most flags in this band: consider raising <code>review_above</code> to ' + UPPER + '.';
+      }
+
+      fill.style.setProperty('--fill', c);
+      verdict.style.setProperty('--c', c);
+      verdict.innerHTML = html;
+    }
+
+    checked.addEventListener('input', render);
+    overturned.addEventListener('input', render);
+    render();
+  })();
+</script>
+</body>
+</html>
