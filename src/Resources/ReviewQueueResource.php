@@ -5,13 +5,20 @@ declare(strict_types=1);
 namespace Phoenix1331\FilamentJevModeration\Resources;
 
 use BackedEnum;
+use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\TextInput;
 use Filament\Models\Contracts\HasName;
 use Filament\Resources\Resource;
 use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\Filter;
+use Filament\Tables\Filters\Indicator;
+use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
+use Illuminate\Database\Query\Builder as QueryBuilder;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Number;
 use Illuminate\Support\Str;
 use Phoenix1331\FilamentJevModeration\Concerns\HasModerationNavigation;
@@ -124,16 +131,7 @@ class ReviewQueueResource extends Resource
 
         return $queue->builder()
             ->select("{$table}.*")
-            ->addSelect(['jev_category' => ModerationDecision::query()->toBase()
-                ->select('earlier.category')
-                ->from("{$table} as earlier")
-                ->whereColumn('earlier.moderatable_type', "{$table}.moderatable_type")
-                ->whereColumn('earlier.moderatable_id', "{$table}.moderatable_id")
-                ->whereColumn('earlier.id', '<', "{$table}.id")
-                ->whereIn('earlier.source', [ModerationSource::Jev->value, ModerationSource::Rescan->value])
-                ->whereNotNull('earlier.category')
-                ->orderByDesc('earlier.id')
-                ->limit(1)])
+            ->addSelect(['jev_category' => $queue->jevCategory()])
             ->with(['moderatable' => static fn (MorphTo $morph): MorphTo => $morph->constrain($constraints)->morphWith($authors)]);
     }
 
@@ -156,7 +154,7 @@ class ReviewQueueResource extends Resource
                 TextColumn::make('category')
                     ->label(__('filament-jev-moderation::queue.columns.category'))
                     ->state(static fn (ModerationDecision $record): ?string => self::category($record))
-                    ->formatStateUsing(static fn (string $state): string => Str::ucfirst(str_replace('_', ' ', $state)))
+                    ->formatStateUsing(static fn (string $state): string => self::categoryLabel($state))
                     ->badge()
                     ->color('danger'),
                 TextColumn::make('confidence')
@@ -181,6 +179,47 @@ class ReviewQueueResource extends Resource
                 ->orderByDesc("{$decisions}.confidence")
                 ->orderBy("{$decisions}.created_at")
                 ->orderBy("{$decisions}.id"))
+            ->filters([
+                SelectFilter::make('moderatable_type')
+                    ->label(__('filament-jev-moderation::queue.filters.model'))
+                    ->multiple()
+                    ->options(static fn (): array => self::modelOptions()),
+                SelectFilter::make('category')
+                    ->label(__('filament-jev-moderation::queue.filters.category'))
+                    ->multiple()
+                    ->options(static fn (): array => self::categoryOptions())
+                    ->query(static fn (Builder $query, array $data): Builder => self::whereCategory($query, $data['values'] ?? null)),
+                Filter::make('confidence')
+                    ->schema([
+                        TextInput::make('from')
+                            ->label(__('filament-jev-moderation::queue.filters.confidence_from'))
+                            ->numeric()
+                            ->minValue(0)
+                            ->maxValue(100)
+                            ->suffix('%'),
+                        TextInput::make('until')
+                            ->label(__('filament-jev-moderation::queue.filters.confidence_until'))
+                            ->numeric()
+                            ->minValue(0)
+                            ->maxValue(100)
+                            ->suffix('%'),
+                    ])
+                    ->query(static fn (Builder $query, array $data): Builder => self::whereConfidence($query, $data))
+                    ->indicateUsing(static fn (array $data): array => self::confidenceIndicators($data)),
+                SelectFilter::make('source')
+                    ->label(__('filament-jev-moderation::queue.filters.source'))
+                    ->multiple()
+                    ->options(static fn (): array => self::sourceOptions()),
+                Filter::make('created_at')
+                    ->schema([
+                        DatePicker::make('from')
+                            ->label(__('filament-jev-moderation::queue.filters.created_from')),
+                        DatePicker::make('until')
+                            ->label(__('filament-jev-moderation::queue.filters.created_until')),
+                    ])
+                    ->query(static fn (Builder $query, array $data): Builder => self::whereCreated($query, $data))
+                    ->indicateUsing(static fn (array $data): array => self::createdIndicators($data)),
+            ])
             ->emptyStateHeading(__('filament-jev-moderation::queue.empty.heading'))
             ->emptyStateDescription(__('filament-jev-moderation::queue.empty.description'))
             ->emptyStateIcon('heroicon-o-inbox-stack');
@@ -196,6 +235,177 @@ class ReviewQueueResource extends Resource
     protected static function queue(): ReviewQueueQuery
     {
         return new ReviewQueueQuery(JevModerationPlugin::get());
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    protected static function modelOptions(): array
+    {
+        $plugin = JevModerationPlugin::get();
+        $options = [];
+
+        foreach (array_keys(self::queue()->modelTypes()) as $type) {
+            $options[$type] = $plugin->getModelLabel($type);
+        }
+
+        return $options;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    protected static function categoryOptions(): array
+    {
+        $options = [];
+
+        foreach (self::queue()->categories() as $category) {
+            $options[$category] = self::categoryLabel($category);
+        }
+
+        return $options;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    protected static function sourceOptions(): array
+    {
+        $options = [];
+
+        foreach (ModerationSource::cases() as $source) {
+            $options[$source->value] = __("filament-jev-moderation::sources.{$source->value}");
+        }
+
+        return $options;
+    }
+
+    /**
+     * Matches the category column: a report matches on the category of the
+     * Jev result before it.
+     *
+     * @param  Builder<ModerationDecision>  $query
+     * @return Builder<ModerationDecision>
+     */
+    protected static function whereCategory(Builder $query, mixed $values): Builder
+    {
+        $values = is_array($values) ? array_values(array_filter($values, is_string(...))) : [];
+
+        if ($values === []) {
+            return $query;
+        }
+
+        $column = (new ModerationDecision)->qualifyColumn('category');
+        $queue = self::queue();
+
+        return $query->where(static fn (Builder $query): Builder => $query
+            ->whereIn($column, $values)
+            ->orWhere(static fn (Builder $report): Builder => $report
+                ->whereNull($column)
+                ->where(static function (Builder $match) use ($queue, $values): void {
+                    foreach ($values as $value) {
+                        $match->getQuery()->orWhere(static fn (QueryBuilder $earlier): QueryBuilder => $queue->jevCategory($earlier), '=', $value);
+                    }
+                })));
+    }
+
+    /**
+     * Confidence between two percentages, both inclusive. Reports, which
+     * carry none, drop out once either bound is set.
+     *
+     * @param  Builder<ModerationDecision>  $query
+     * @param  array<mixed>  $data
+     * @return Builder<ModerationDecision>
+     */
+    protected static function whereConfidence(Builder $query, array $data): Builder
+    {
+        $column = (new ModerationDecision)->qualifyColumn('confidence');
+        $from = self::percentage($data['from'] ?? null);
+        $until = self::percentage($data['until'] ?? null);
+
+        return $query
+            ->when($from !== null, static fn (Builder $query): Builder => $query->where($column, '>=', round((float) $from / 100, 4)))
+            ->when($until !== null, static fn (Builder $query): Builder => $query->where($column, '<=', round((float) $until / 100, 4)));
+    }
+
+    /**
+     * @param  array<mixed>  $data
+     * @return list<Indicator>
+     */
+    protected static function confidenceIndicators(array $data): array
+    {
+        $indicators = [];
+
+        foreach (['from', 'until'] as $bound) {
+            $value = self::percentage($data[$bound] ?? null);
+
+            if ($value !== null) {
+                $indicators[] = Indicator::make(__("filament-jev-moderation::queue.filters.indicators.confidence_{$bound}", [
+                    'value' => Number::percentage($value),
+                ]))->removeField($bound);
+            }
+        }
+
+        return $indicators;
+    }
+
+    /**
+     * Queued on or between two dates, both inclusive.
+     *
+     * @param  Builder<ModerationDecision>  $query
+     * @param  array<mixed>  $data
+     * @return Builder<ModerationDecision>
+     */
+    protected static function whereCreated(Builder $query, array $data): Builder
+    {
+        $column = (new ModerationDecision)->qualifyColumn('created_at');
+        $from = self::date($data['from'] ?? null);
+        $until = self::date($data['until'] ?? null);
+
+        return $query
+            ->when($from !== null, static fn (Builder $query): Builder => $query->whereDate($column, '>=', (string) $from))
+            ->when($until !== null, static fn (Builder $query): Builder => $query->whereDate($column, '<=', (string) $until));
+    }
+
+    /**
+     * @param  array<mixed>  $data
+     * @return list<Indicator>
+     */
+    protected static function createdIndicators(array $data): array
+    {
+        $indicators = [];
+
+        foreach (['from', 'until'] as $bound) {
+            $value = self::date($data[$bound] ?? null);
+
+            if ($value !== null) {
+                $indicators[] = Indicator::make(__("filament-jev-moderation::queue.filters.indicators.created_{$bound}", [
+                    'date' => Carbon::parse($value)->toFormattedDateString(),
+                ]))->removeField($bound);
+            }
+        }
+
+        return $indicators;
+    }
+
+    /**
+     * A percentage from 0 to 100, or null when blank or out of range.
+     */
+    private static function percentage(mixed $value): ?float
+    {
+        if (! is_numeric($value) || $value < 0 || $value > 100) {
+            return null;
+        }
+
+        return (float) $value;
+    }
+
+    /**
+     * A Y-m-d date, or null when blank or malformed.
+     */
+    private static function date(mixed $value): ?string
+    {
+        return is_string($value) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $value) === 1 ? $value : null;
     }
 
     /**
@@ -253,6 +463,14 @@ class ReviewQueueResource extends Resource
         $category = $decision->category ?? $decision->getAttribute('jev_category');
 
         return is_string($category) ? $category : null;
+    }
+
+    /**
+     * A category name in sentence case: `personal_data` reads "Personal data".
+     */
+    private static function categoryLabel(string $category): string
+    {
+        return Str::ucfirst(str_replace('_', ' ', $category));
     }
 
     private static function key(Model $model): string

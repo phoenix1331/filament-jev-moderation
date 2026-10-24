@@ -9,6 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Added
 
 - Review queue (`Moderation > Review queue`): every record whose latest decision is a flag (and a block with `includeBlocked()`), across every moderated model, with its type, current content (including content hidden from the site), author, category, confidence, source and time waiting. Most confident first, then longest waiting; reports show their reason and the category Jev gave before them. The navigation badge shows how many are waiting
+- Review queue filters: model type, category (a report matches on the category Jev gave before it; options are the choices of the shown models' policies), confidence range in percent (inclusive, reports drop out), source, and date queued
 - Requires `phoenix1331/laravel-jev-moderation` 0.2
 - `authorize()` decides who may use the moderation pages and widgets: the callback must return exactly `true`, and without one access is allowed in the `local` environment only. Pages return 403 on mount and every request; widgets too, even when mounted directly
 - Moderation actions (approve, reject, reclassify) are checked on top of `authorize()`: through `authorizeActionsUsing()` when given, else through a registered `ModerationDecision` policy (Filament Shield or your own; abilities `approve`, `reject`, `reclassify`), else allowed to anyone with access

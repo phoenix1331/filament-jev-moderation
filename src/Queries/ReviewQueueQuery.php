@@ -10,7 +10,9 @@ use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Database\Query\Builder as QueryBuilder;
 use Phoenix1331\FilamentJevModeration\JevModerationPlugin;
 use Phoenix1331\JevModeration\Concerns\Moderatable;
+use Phoenix1331\JevModeration\Enums\ModerationSource;
 use Phoenix1331\JevModeration\Enums\ModerationStatus;
+use Phoenix1331\JevModeration\Facades\JevModeration;
 use Phoenix1331\JevModeration\Models\ModerationDecision;
 
 /**
@@ -48,6 +50,48 @@ final readonly class ReviewQueueQuery
             ->whereHasMorph('moderatable', array_values($types), static function (Builder $record): void {
                 $record->scopes('withoutModeration');
             });
+    }
+
+    /**
+     * The category of the latest Jev or rescan result before each row, for
+     * reports, which carry none. Correlated to the outer decisions table;
+     * built onto $query when given, for comparisons through a closure.
+     */
+    public function jevCategory(?QueryBuilder $query = null): QueryBuilder
+    {
+        $table = (new ModerationDecision)->getTable();
+
+        return ($query ?? ModerationDecision::query()->toBase())
+            ->select('earlier.category')
+            ->from("{$table} as earlier")
+            ->whereColumn('earlier.moderatable_type', "{$table}.moderatable_type")
+            ->whereColumn('earlier.moderatable_id', "{$table}.moderatable_id")
+            ->whereColumn('earlier.id', '<', "{$table}.id")
+            ->whereIn('earlier.source', [ModerationSource::Jev->value, ModerationSource::Rescan->value])
+            ->whereNotNull('earlier.category')
+            ->orderByDesc('earlier.id')
+            ->limit(1);
+    }
+
+    /**
+     * Every choice of the policies the shown models use, in policy order.
+     *
+     * @return list<string>
+     */
+    public function categories(): array
+    {
+        $categories = [];
+
+        foreach ($this->modelTypes() as $class) {
+            $model = new $class;
+            $policy = method_exists($model, 'moderationPolicy') ? $model->moderationPolicy() : null;
+
+            if (is_string($policy)) {
+                array_push($categories, ...array_keys(JevModeration::policy($policy)->choices));
+            }
+        }
+
+        return array_values(array_unique($categories));
     }
 
     /**

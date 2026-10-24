@@ -5,6 +5,7 @@ declare(strict_types=1);
 use Filament\Facades\Filament;
 use Filament\Navigation\NavigationItem;
 use Filament\Panel;
+use Filament\Tables\Filters\SelectFilter;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -12,6 +13,7 @@ use Phoenix1331\FilamentJevModeration\JevModerationPlugin;
 use Phoenix1331\FilamentJevModeration\Resources\ReviewQueueResource;
 use Phoenix1331\FilamentJevModeration\Resources\ReviewQueueResource\Pages\ListReviewQueue;
 use Phoenix1331\JevModeration\Database\Factories\ModerationDecisionFactory;
+use Phoenix1331\JevModeration\Enums\ModerationSource;
 use Phoenix1331\JevModeration\Models\ModerationDecision;
 use Workbench\App\Models\ChatMessage;
 use Workbench\App\Models\ForumPost;
@@ -239,6 +241,134 @@ describe('rows', function (): void {
         livewire(ListReviewQueue::class)
             ->assertCountTableRecords(0)
             ->assertSee('Nothing waiting for review');
+    });
+});
+
+describe('filters', function (): void {
+    it('filters by model type, offering every shown type by its label', function (): void {
+        $post = decisionFor(forumPost())->flagged()->create();
+        $message = decisionFor(ChatMessage::factory()->createQuietly())->flagged()->create();
+
+        livewire(ListReviewQueue::class)
+            ->assertTableFilterExists('moderatable_type', fn (SelectFilter $filter): bool => $filter->getOptions() === [
+                (new ChatMessage)->getMorphClass() => 'Chat message',
+                (new ForumPost)->getMorphClass() => 'Forum post',
+            ])
+            ->filterTable('moderatable_type', [(new ChatMessage)->getMorphClass()])
+            ->assertCanSeeTableRecords([$message])
+            ->assertCanNotSeeTableRecords([$post]);
+    });
+
+    it('filters by category, matching a report on the category Jev gave before it', function (): void {
+        $harassment = decisionFor(forumPost())->flagged('harassment', 0.72)->create();
+        $spam = decisionFor(forumPost())->flagged('spam', 0.8)->create();
+        $hate = decisionFor(forumPost())->flagged('hate', 0.5)->create();
+
+        $reportedPost = forumPost();
+        decisionFor($reportedPost)->flagged('spam', 0.6)->create();
+        decisionFor($reportedPost)->passed('harassment', 0.31)->create();
+        $report = decisionFor($reportedPost)->reported()->create();
+
+        $unclassified = forumPost();
+        $bareReport = decisionFor($unclassified)->reported()->create();
+
+        livewire(ListReviewQueue::class)
+            ->filterTable('category', ['harassment', 'hate'])
+            ->assertCanSeeTableRecords([$harassment, $hate, $report])
+            ->assertCanNotSeeTableRecords([$spam, $bareReport])
+            ->assertSee('Category: Harassment & Hate')
+            ->filterTable('category', ['spam'])
+            ->assertCanSeeTableRecords([$spam])
+            ->assertCanNotSeeTableRecords([$harassment, $hate, $report, $bareReport]);
+    });
+
+    it('offers every choice of the shown models\' policies once', function (): void {
+        decisionFor(forumPost())->flagged()->create();
+        decisionFor(ChatMessage::factory()->createQuietly())->flagged()->create();
+
+        livewire(ListReviewQueue::class)->assertTableFilterExists('category', fn (SelectFilter $filter): bool => $filter->getOptions() === [
+            'spam' => 'Spam',
+            'harassment' => 'Harassment',
+            'hate' => 'Hate',
+            'sexual' => 'Sexual',
+            'personal_data' => 'Personal data',
+            'fine' => 'Fine',
+            'off_topic' => 'Off topic',
+        ]);
+    });
+
+    it('filters by a confidence range, both ends inclusive, dropping reports', function (): void {
+        $low = decisionFor(forumPost())->flagged('spam', 0.55)->create();
+        $middle = decisionFor(forumPost())->flagged('spam', 0.72)->create();
+        $high = decisionFor(forumPost())->flagged('spam', 0.91)->create();
+        $report = decisionFor(forumPost())->reported()->create();
+
+        livewire(ListReviewQueue::class)
+            ->filterTable('confidence', ['from' => 72])
+            ->assertCanSeeTableRecords([$middle, $high])
+            ->assertCanNotSeeTableRecords([$low, $report])
+            ->assertSee('Confidence from 72%')
+            ->filterTable('confidence', ['from' => 55, 'until' => 72])
+            ->assertCanSeeTableRecords([$low, $middle])
+            ->assertCanNotSeeTableRecords([$high, $report])
+            ->assertSee('Confidence up to 72%')
+            ->filterTable('confidence', ['from' => null, 'until' => null])
+            ->assertCanSeeTableRecords([$low, $middle, $high, $report]);
+    });
+
+    it('ignores a confidence outside 0 to 100', function (): void {
+        $flag = decisionFor(forumPost())->flagged('spam', 0.55)->create();
+
+        $page = livewire(ListReviewQueue::class)
+            ->filterTable('confidence', ['from' => 150, 'until' => -5])
+            ->assertCanSeeTableRecords([$flag]);
+
+        expect($page->instance()->getTable()->getFilter('confidence')?->getIndicators())->toBe([]);
+    });
+
+    it('filters by source, offering every source by its label', function (): void {
+        $jev = decisionFor(forumPost())->flagged()->create();
+        $rescan = decisionFor(forumPost())->flagged()->create(['source' => ModerationSource::Rescan]);
+        $report = decisionFor(forumPost())->reported()->create();
+
+        livewire(ListReviewQueue::class)
+            ->assertTableFilterExists('source', fn (SelectFilter $filter): bool => $filter->getOptions() === [
+                'jev' => 'Jev',
+                'human' => 'Moderator',
+                'report' => 'Report',
+                'rescan' => 'Rescan',
+            ])
+            ->filterTable('source', [ModerationSource::Report, ModerationSource::Rescan])
+            ->assertCanSeeTableRecords([$rescan, $report])
+            ->assertCanNotSeeTableRecords([$jev]);
+    });
+
+    it('filters by the date queued, both ends inclusive', function (): void {
+        Carbon::setTestNow('2026-10-23 12:00:00');
+
+        $old = decisionFor(forumPost())->flagged()->create(['created_at' => '2026-10-19 08:00:00']);
+        $middle = decisionFor(forumPost())->flagged()->create(['created_at' => '2026-10-21 23:30:00']);
+        $today = decisionFor(forumPost())->flagged()->create(['created_at' => '2026-10-23 09:00:00']);
+
+        livewire(ListReviewQueue::class)
+            ->filterTable('created_at', ['from' => '2026-10-21'])
+            ->assertCanSeeTableRecords([$middle, $today])
+            ->assertCanNotSeeTableRecords([$old])
+            ->assertSee('Queued from Oct 21, 2026')
+            ->filterTable('created_at', ['from' => '2026-10-19', 'until' => '2026-10-21'])
+            ->assertCanSeeTableRecords([$old, $middle])
+            ->assertCanNotSeeTableRecords([$today])
+            ->assertSee('Queued until Oct 21, 2026');
+    });
+
+    it('ignores a malformed date', function (): void {
+        $flag = decisionFor(forumPost())->flagged()->create();
+
+        $page = livewire(ListReviewQueue::class)
+            ->filterTable('created_at', ['from' => 'yesterday'])
+            ->assertCanSeeTableRecords([$flag]);
+
+        expect($page->instance()->getTable()->getFilter('created_at')?->getIndicators())->toBe([]);
     });
 });
 
