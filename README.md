@@ -6,7 +6,7 @@ A Filament review queue for [Jev Moderation](https://github.com/phoenix1331/lara
 
 [![Tests](https://github.com/phoenix1331/filament-jev-moderation/actions/workflows/tests.yml/badge.svg)](https://github.com/phoenix1331/filament-jev-moderation/actions/workflows/tests.yml)
 [![Static analysis](https://github.com/phoenix1331/filament-jev-moderation/actions/workflows/static-analysis.yml/badge.svg)](https://github.com/phoenix1331/filament-jev-moderation/actions/workflows/static-analysis.yml)
-[![Packagist](https://img.shields.io/packagist/v/phoenix1331/filament-jev-moderation.svg)](https://packagist.org/packages/phoenix1331/filament-jev-moderation)
+[![Release](https://img.shields.io/github/v/release/phoenix1331/filament-jev-moderation.svg)](https://github.com/phoenix1331/filament-jev-moderation/releases)
 [![Licence](https://img.shields.io/github/license/phoenix1331/filament-jev-moderation.svg)](LICENSE)
 
 <picture>
