@@ -22,9 +22,11 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Number;
 use Illuminate\Support\Str;
 use Phoenix1331\FilamentJevModeration\Concerns\HasModerationNavigation;
+use Phoenix1331\FilamentJevModeration\Enums\ReviewAction;
 use Phoenix1331\FilamentJevModeration\JevModerationPlugin;
 use Phoenix1331\FilamentJevModeration\Queries\ReviewQueueQuery;
 use Phoenix1331\FilamentJevModeration\Resources\ReviewQueueResource\Pages\ListReviewQueue;
+use Phoenix1331\FilamentJevModeration\Resources\ReviewQueueResource\ReviewActions;
 use Phoenix1331\JevModeration\Enums\ModerationSource;
 use Phoenix1331\JevModeration\Models\ModerationDecision;
 
@@ -219,6 +221,14 @@ class ReviewQueueResource extends Resource
                     ])
                     ->query(static fn (Builder $query, array $data): Builder => self::whereCreated($query, $data))
                     ->indicateUsing(static fn (array $data): array => self::createdIndicators($data)),
+            ])
+            ->recordActions([
+                ReviewActions::row(ReviewAction::Approve),
+                ReviewActions::row(ReviewAction::Reject),
+            ])
+            ->toolbarActions([
+                ReviewActions::bulk(ReviewAction::Approve),
+                ReviewActions::bulk(ReviewAction::Reject),
             ])
             ->emptyStateHeading(__('filament-jev-moderation::queue.empty.heading'))
             ->emptyStateDescription(__('filament-jev-moderation::queue.empty.description'))

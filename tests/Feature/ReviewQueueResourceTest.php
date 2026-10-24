@@ -6,13 +6,12 @@ use Filament\Facades\Filament;
 use Filament\Navigation\NavigationItem;
 use Filament\Panel;
 use Filament\Tables\Filters\SelectFilter;
-use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Phoenix1331\FilamentJevModeration\JevModerationPlugin;
 use Phoenix1331\FilamentJevModeration\Resources\ReviewQueueResource;
 use Phoenix1331\FilamentJevModeration\Resources\ReviewQueueResource\Pages\ListReviewQueue;
-use Phoenix1331\JevModeration\Database\Factories\ModerationDecisionFactory;
 use Phoenix1331\JevModeration\Enums\ModerationSource;
 use Phoenix1331\JevModeration\Models\ModerationDecision;
 use Workbench\App\Models\ChatMessage;
@@ -30,18 +29,6 @@ beforeEach(function (): void {
     JevModerationPlugin::get()->authorize(true);
     $this->actingAs(User::factory()->create(['name' => 'Demo Moderator']));
 });
-
-function decisionFor(Model $model): ModerationDecisionFactory
-{
-    return ModerationDecisionFactory::new()->forModel($model);
-}
-
-function forumPost(string $title = 'Re: servicing', string $body = 'Only an idiot would pay that much.', string $author = 'Jordan Lee'): ForumPost
-{
-    return ForumPost::factory()
-        ->for(User::factory()->state(['name' => $author]))
-        ->createQuietly(['title' => $title, 'body' => $body]);
-}
 
 describe('registration', function (): void {
     it('is registered by the plugin with translated labels', function (): void {
@@ -295,6 +282,15 @@ describe('filters', function (): void {
             'fine' => 'Fine',
             'off_topic' => 'Off topic',
         ]);
+    });
+
+    it('leaves out the choices of a policy removed from config', function (): void {
+        $flag = decisionFor(ChatMessage::factory()->createQuietly())->flagged('sexual', 0.7)->create();
+        config(['jev-moderation.policies' => Arr::except((array) config('jev-moderation.policies'), 'chat')]);
+
+        livewire(ListReviewQueue::class)
+            ->assertCanSeeTableRecords([$flag])
+            ->assertTableFilterExists('category', fn (SelectFilter $filter): bool => $filter->getOptions() === []);
     });
 
     it('filters by a confidence range, both ends inclusive, dropping reports', function (): void {

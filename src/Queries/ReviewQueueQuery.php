@@ -75,6 +75,8 @@ final readonly class ReviewQueueQuery
 
     /**
      * Every choice of the policies the shown models use, in policy order.
+     * A policy since removed from config is left out, so the queue still
+     * loads; acting on its records reports the core's error instead.
      *
      * @return list<string>
      */
@@ -86,7 +88,7 @@ final readonly class ReviewQueueQuery
             $model = new $class;
             $policy = method_exists($model, 'moderationPolicy') ? $model->moderationPolicy() : null;
 
-            if (is_string($policy)) {
+            if (is_string($policy) && in_array($policy, JevModeration::policies(), true)) {
                 array_push($categories, ...array_keys(JevModeration::policy($policy)->choices));
             }
         }
