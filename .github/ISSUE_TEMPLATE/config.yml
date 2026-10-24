@@ -5,4 +5,4 @@ contact_links:
     about: Ask how to use Jev Moderation for Filament or discuss an idea before opening an issue.
   - name: Security vulnerability
     url: https://github.com/phoenix1331/filament-jev-moderation/blob/main/SECURITY.md
-    about: Please report security issues privately by email, not as a public issue.
+    about: Please report security issues privately through GitHub (or by email), not as a public issue.
