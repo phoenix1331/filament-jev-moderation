@@ -41,6 +41,8 @@ final class ReviewActions
     {
         return Action::make('view_record')
             ->label(__('filament-jev-moderation::queue.actions.view_record'))
+            ->tooltip(__('filament-jev-moderation::queue.actions.view_record'))
+            ->iconButton()
             ->icon('heroicon-o-arrow-top-right-on-square')
             ->color('gray')
             ->url(static fn (ModerationDecision $record): ?string => JevModerationPlugin::get()->getRecordUrl($record))
@@ -48,10 +50,16 @@ final class ReviewActions
             ->visible(static fn (ModerationDecision $record): bool => JevModerationPlugin::get()->getRecordUrl($record) !== null);
     }
 
+    /**
+     * Icon buttons with the label as tooltip and accessible name: four
+     * labelled actions crowd out the content column at laptop widths.
+     */
     public static function row(ReviewAction $action): Action
     {
         return Action::make($action->value)
             ->label(__("filament-jev-moderation::queue.actions.{$action->value}.label"))
+            ->tooltip(__("filament-jev-moderation::queue.actions.{$action->value}.label"))
+            ->iconButton()
             ->icon(self::icon($action))
             ->color(self::color($action))
             ->authorize(static fn (ModerationDecision $record): bool => JevModerationPlugin::get()->canReview($action, $record))

@@ -15,4 +15,9 @@ return [
         'override_rate' => 'Override rate',
         'override_rate_description' => 'Moderators overturned :overturned of :checked flags and blocks in the last :days days',
     ],
+    'volume' => [
+        'heading' => 'Decisions per day',
+        'window' => 'Last :days days',
+        'total' => ':status :count',
+    ],
 ];

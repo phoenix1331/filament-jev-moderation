@@ -9,6 +9,7 @@ use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\TextInput;
 use Filament\Resources\Resource;
 use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Enums\RecordActionsPosition;
 use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\Indicator;
 use Filament\Tables\Filters\SelectFilter;
@@ -230,7 +231,7 @@ class ReviewQueueResource extends Resource
                 ReviewActions::row(ReviewAction::Approve),
                 ReviewActions::row(ReviewAction::Reject),
                 ReviewActions::row(ReviewAction::Reclassify),
-            ])
+            ], position: RecordActionsPosition::BeforeColumns)
             ->toolbarActions([
                 ReviewActions::bulk(ReviewAction::Approve),
                 ReviewActions::bulk(ReviewAction::Reject),
