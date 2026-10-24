@@ -20,6 +20,7 @@ use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Session\Middleware\StartSession;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
 use Phoenix1331\FilamentJevModeration\JevModerationPlugin;
+use Workbench\App\Filament\Pages\WidgetPreview;
 use Workbench\App\Models\ChatMessage;
 
 class AdminPanelProvider extends PanelProvider
@@ -32,7 +33,7 @@ class AdminPanelProvider extends PanelProvider
             ->path('admin')
             ->login()
             ->colors(['primary' => Color::Indigo])
-            ->pages([Dashboard::class])
+            ->pages([Dashboard::class, WidgetPreview::class])
             ->widgets([AccountWidget::class])
             ->plugin(
                 JevModerationPlugin::make()

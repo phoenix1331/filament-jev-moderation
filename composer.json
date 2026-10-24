@@ -83,6 +83,10 @@
             "@lint:test",
             "@analyse",
             "@test:coverage"
+        ],
+        "screenshots": [
+            "Composer\\Config::disableProcessTimeout",
+            "sh bin/screenshots"
         ]
     },
     "scripts-descriptions": {
@@ -95,7 +99,8 @@
         "clear": "Reset the Testbench skeleton",
         "prepare": "Discover package providers in the Testbench skeleton",
         "build": "Build the workbench: publish assets, recreate SQLite, migrate and seed demo data",
-        "serve": "Build the workbench and serve the demo panel"
+        "serve": "Build the workbench and serve the demo panel",
+        "screenshots": "Capture every page and widget, light and dark, into docs/screenshots (needs Chrome and composer build)"
     },
     "config": {
         "sort-packages": true,

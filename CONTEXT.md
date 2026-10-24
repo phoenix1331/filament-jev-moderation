@@ -130,7 +130,7 @@ Verified locally: Filament 5.10.3 on Laravel 13.38 (stable), 4.13.3 on Laravel 1
 
 ## Workbench
 
-**composer**: build | serve
+**composer**: build | serve | screenshots
 **login**: `/_workbench` logs in as `demo@example.com` (`testbench.yaml` `workbench.user`) and lands on `/admin`
 
 - `testbench.yaml` lists the package provider, `WorkbenchServiceProvider` (host-app config) and `AdminPanelProvider`; `migrations:` loads the core's published migration from `vendor/` plus `workbench/database/migrations`; seeders run from `seeders:` only
@@ -138,6 +138,9 @@ Verified locally: Filament 5.10.3 on Laravel 13.38 (stable), 4.13.3 on Laravel 1
 - `DemoRandom` (`Random\Randomizer` on a seeded `Mt19937`), not `mt_rand()`: Pest's security preset bans `mt_rand`, and an instance keeps no global state. Same seed, same history (`tests/Feature/WorkbenchSeederTest.php`)
 - Content is created with `createQuietly()`, so no check runs while seeding; content saved in the demo is checked inline by the fake driver
 - Larastan analyses `workbench/` too: tests reuse its models
+- `AdminPanelProvider` sets `authorRelations([ChatMessage::class => 'sender'])`; without it chat rows show no author
+- `Filament/Pages/WidgetPreview` (`/admin/widget-preview?widget={kebab name}`, hidden from navigation, chrome hidden through a render hook from `WorkbenchServiceProvider::boot()`) renders one plugin widget for screenshots; the calibration widget as under the queue (`onlyFlagged`)
+- `composer screenshots` (`bin/screenshots`, POSIX; needs Chrome and `composer build`): serves on `SCREENSHOT_PORT` (default 8000), logs in through `/_workbench` with a throwaway profile, writes `docs/screenshots/{name}-{light,dark}.png` for every page and widget at 1400px wide (history: the record with the most decisions; author: Jordan Lee), then `bin/directory-images.mjs` (Node 22+, DevTools protocol) writes `plugin-directory.jpg` (2560x1440) and `plugin-directory-thumbnail.jpg` (1920x1080). `SCREENSHOT_ONLY="queue thresholds"` limits a run. Run against the workbench, not a test app, so nothing outside the repo is needed
 
 ## CI
 

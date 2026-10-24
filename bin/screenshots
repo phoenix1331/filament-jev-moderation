@@ -1,0 +1,116 @@
+#!/usr/bin/env sh
+# Captures every page and widget from the seeded workbench, light and dark,
+# into docs/screenshots/. Needs Google Chrome or Chromium and a built
+# workbench (composer build). Usage: composer screenshots
+# SCREENSHOT_ONLY="queue thresholds" limits the run to those names.
+set -eu
+
+ROOT=$(cd "$(dirname "$0")/.." && pwd)
+OUT="$ROOT/docs/screenshots"
+PORT=${SCREENSHOT_PORT:-8000}
+ONLY=${SCREENSHOT_ONLY:-}
+WIDTH=1400
+BASE="http://127.0.0.1:$PORT"
+
+CHROME=${CHROME:-}
+for candidate in google-chrome google-chrome-stable chromium chromium-browser; do
+    if [ -z "$CHROME" ] && command -v "$candidate" > /dev/null 2>&1; then
+        CHROME=$candidate
+    fi
+done
+
+if [ -z "$CHROME" ]; then
+    echo "error: Google Chrome or Chromium is required (or set CHROME)."
+    exit 1
+fi
+
+if ss -tln 2>/dev/null | grep -q ":$PORT "; then
+    echo "error: port $PORT is in use; set SCREENSHOT_PORT to a free port."
+    exit 1
+fi
+
+PROFILE=$(mktemp -d)
+cd "$ROOT"
+vendor/bin/testbench serve --port="$PORT" > "$PROFILE/serve.log" 2>&1 &
+SERVER=$!
+
+directory_images() {
+    # Filament plugin directory images (JPEG, light theme) need the DevTools
+    # protocol, so they come from a small Node script.
+    if [ -n "$ONLY" ] && ! printf ' %s ' "$ONLY" | grep -q " plugin-directory "; then
+        return
+    fi
+
+    if ! command -v node > /dev/null 2>&1; then
+        echo "  skipped plugin-directory images: Node 22+ is required"
+        return
+    fi
+
+    node "$ROOT/bin/directory-images.mjs" "$BASE" "$OUT" "$(command -v "$CHROME")"
+}
+
+cleanup() {
+    kill "$SERVER" 2> /dev/null || true
+    pkill -f "php -S 127.0.0.1:$PORT" 2> /dev/null || true
+    rm -rf "$PROFILE"
+}
+trap cleanup EXIT INT TERM
+
+tries=0
+until curl -s -o /dev/null "$BASE/admin/login"; do
+    tries=$((tries + 1))
+    if [ "$tries" -gt 40 ]; then
+        echo "error: the workbench did not start; run composer build first."
+        exit 1
+    fi
+    sleep 0.5
+done
+
+# The record with the longest history, and the seeded repeat offender.
+DECISION=$(vendor/bin/testbench tinker --execute='echo \Phoenix1331\JevModeration\Models\ModerationDecision::query()->selectRaw("count(*) as n, max(id) as id")->groupBy("moderatable_type", "moderatable_id")->orderByDesc("n")->orderBy("id")->value("id");' 2> /dev/null | tail -n 1)
+AUTHOR=$(vendor/bin/testbench tinker --execute='echo \Workbench\App\Models\User::query()->where("email", "jordan.lee@example.com")->value("id");' 2> /dev/null | tail -n 1)
+AUTHOR_TYPE='Workbench%5CApp%5CModels%5CUser'
+
+mkdir -p "$OUT"
+
+shoot() { # mode, name, path, height
+    if [ -n "$ONLY" ] && ! printf ' %s ' "$ONLY" | grep -q " $2 "; then
+        return
+    fi
+
+    flags=""
+    if [ "$1" = dark ]; then
+        flags="--force-dark-mode --blink-settings=preferredColorScheme=0"
+    fi
+
+    # shellcheck disable=SC2086
+    "$CHROME" --headless=new --no-sandbox --disable-gpu --hide-scrollbars \
+        --user-data-dir="$PROFILE/$1" --virtual-time-budget=14000 $flags \
+        --window-size="$WIDTH,$4" --screenshot="$OUT/$2-$1.png" "$BASE$3" > /dev/null 2>&1
+    echo "  docs/screenshots/$2-$1.png"
+}
+
+for mode in light dark; do
+    flags=""
+    if [ "$mode" = dark ]; then
+        flags="--force-dark-mode --blink-settings=preferredColorScheme=0"
+    fi
+
+    # shellcheck disable=SC2086
+    "$CHROME" --headless=new --no-sandbox --disable-gpu --user-data-dir="$PROFILE/$mode" \
+        --virtual-time-budget=8000 $flags --dump-dom "$BASE/_workbench" > /dev/null 2>&1
+
+    echo "$mode:"
+    shoot "$mode" queue /admin/moderation/queue 2480
+    shoot "$mode" queue-top /admin/moderation/queue 900
+    shoot "$mode" decision-history "/admin/moderation/queue/$DECISION" 1650
+    shoot "$mode" author-history "/admin/moderation/queue/authors/$AUTHOR?type=$AUTHOR_TYPE" 1750
+    shoot "$mode" thresholds /admin/moderation/thresholds 1500
+
+    for widget in moderation-overview:260 decision-volume-chart:520 calibration-table:380; do
+        shoot "$mode" "widget-${widget%%:*}" "/admin/widget-preview?widget=${widget%%:*}" "${widget#*:}"
+    done
+done
+
+echo "plugin directory:"
+directory_images

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Workbench\App\Providers;
 
 use Illuminate\Support\ServiceProvider;
+use Workbench\App\Filament\Pages\WidgetPreview;
 
 /**
  * Settings a host app would put in its own config, for the workbench only.
@@ -20,5 +21,10 @@ class WorkbenchServiceProvider extends ServiceProvider
             'jev-moderation.sync' => true,
             'jev-moderation.mode' => 'post',
         ]);
+    }
+
+    public function boot(): void
+    {
+        WidgetPreview::hideChrome();
     }
 }
