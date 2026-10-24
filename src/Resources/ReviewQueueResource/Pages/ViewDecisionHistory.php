@@ -73,7 +73,10 @@ class ViewDecisionHistory extends Page
         $decision = ModerationDecision::query()
             ->whereIn('moderatable_type', array_keys($queue->modelTypes()))
             ->whereKey($this->record)
-            ->firstOrFail();
+            ->first();
+
+        // An explicit 404: Filament 4 does not turn a ModelNotFoundException in mount() into one.
+        abort_unless($decision instanceof ModerationDecision, 404);
 
         $decision->load(['moderatable' => static fn (MorphTo $morph): MorphTo => $morph->constrain($queue->recordConstraints())]);
 
@@ -91,6 +94,7 @@ class ViewDecisionHistory extends Page
         return [
             'decision' => $decision,
             'author' => ReviewQueueResource::authorName($decision),
+            'authorUrl' => ReviewQueueResource::authorUrl($decision),
             'content' => $record instanceof Model && method_exists($record, 'moderatableContent') ? self::fields($record->moderatableContent()) : null,
             'entries' => (new DecisionTimeline)->for($decision),
         ];

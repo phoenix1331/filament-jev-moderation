@@ -11,7 +11,8 @@
     >
         @if ($author !== null)
             <p class="fi-jev-moderation-muted fi-jev-moderation-author">
-                {{ __('filament-jev-moderation::decision.content.author') }}: {{ $author }}
+                {{ __('filament-jev-moderation::decision.content.author') }}:
+                <x-filament::link :href="$authorUrl">{{ $author }}</x-filament::link>
             </p>
         @endif
 

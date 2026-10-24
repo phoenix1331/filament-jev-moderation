@@ -102,7 +102,7 @@ describe('content', function (): void {
 
         history($flag)
             ->assertSeeInOrder(['Title', 'Re: servicing', 'Body', 'First line'])
-            ->assertSee('Author: Jordan Lee');
+            ->assertSeeInOrder(['Author:', 'Jordan Lee']);
     });
 
     it('shows content the core hides in pre mode', function (): void {

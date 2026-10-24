@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Phoenix1331\FilamentJevModeration\Data;
 
 use Illuminate\Support\Carbon;
+use Phoenix1331\FilamentJevModeration\Support\StatusColour;
 use Phoenix1331\JevModeration\Enums\ModerationSource;
 use Phoenix1331\JevModeration\Enums\ModerationStatus;
 use Phoenix1331\JevModeration\Enums\VerdictReason;
@@ -58,11 +59,6 @@ final readonly class TimelineEntry
 
     public function statusColor(): string
     {
-        return match ($this->status) {
-            ModerationStatus::Pending, ModerationStatus::Failed => 'gray',
-            ModerationStatus::Passed, ModerationStatus::Approved => 'success',
-            ModerationStatus::Flagged => 'warning',
-            ModerationStatus::Blocked, ModerationStatus::Rejected => 'danger',
-        };
+        return StatusColour::for($this->status);
     }
 }

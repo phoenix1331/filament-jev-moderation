@@ -66,7 +66,7 @@ describe('registration', function (): void {
             ->and(ReviewQueueResource::canEdit($decision))->toBeFalse()
             ->and(ReviewQueueResource::canDelete($decision))->toBeFalse()
             ->and(ReviewQueueResource::canDeleteAny())->toBeFalse()
-            ->and(array_keys(ReviewQueueResource::getPages()))->toBe(['index', 'view']);
+            ->and(array_keys(ReviewQueueResource::getPages()))->toBe(['index', 'view', 'author']);
     });
 });
 

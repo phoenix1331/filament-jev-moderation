@@ -24,6 +24,7 @@ use Phoenix1331\FilamentJevModeration\Concerns\HasModerationNavigation;
 use Phoenix1331\FilamentJevModeration\Enums\ReviewAction;
 use Phoenix1331\FilamentJevModeration\JevModerationPlugin;
 use Phoenix1331\FilamentJevModeration\Queries\ReviewQueueQuery;
+use Phoenix1331\FilamentJevModeration\Resources\ReviewQueueResource\Pages\AuthorHistory;
 use Phoenix1331\FilamentJevModeration\Resources\ReviewQueueResource\Pages\ListReviewQueue;
 use Phoenix1331\FilamentJevModeration\Resources\ReviewQueueResource\Pages\ViewDecisionHistory;
 use Phoenix1331\FilamentJevModeration\Resources\ReviewQueueResource\ReviewActions;
@@ -153,7 +154,8 @@ class ReviewQueueResource extends Resource
                     ->wrap(),
                 TextColumn::make('author')
                     ->label(__('filament-jev-moderation::queue.columns.author'))
-                    ->state(static fn (ModerationDecision $record): ?string => self::authorName($record)),
+                    ->state(static fn (ModerationDecision $record): ?string => self::authorName($record))
+                    ->url(static fn (ModerationDecision $record): ?string => self::authorUrl($record)),
                 TextColumn::make('category')
                     ->label(__('filament-jev-moderation::queue.columns.category'))
                     ->state(static fn (ModerationDecision $record): ?string => self::queuedCategory($record))
@@ -243,6 +245,7 @@ class ReviewQueueResource extends Resource
         return [
             'index' => ListReviewQueue::route('/'),
             'view' => ViewDecisionHistory::route('/{record}'),
+            'author' => AuthorHistory::route('/authors/{author}'),
         ];
     }
 
@@ -424,8 +427,10 @@ class ReviewQueueResource extends Resource
 
     /**
      * The record's moderated fields as they are now, joined and shortened.
+     *
+     * @internal
      */
-    protected static function excerpt(ModerationDecision $decision): ?string
+    public static function excerpt(ModerationDecision $decision): ?string
     {
         $record = $decision->getRelationValue('moderatable');
 
@@ -443,9 +448,11 @@ class ReviewQueueResource extends Resource
     }
 
     /**
+     * The author of the decision's record, through the model's author relation.
+     *
      * @internal
      */
-    public static function authorName(ModerationDecision $decision): ?string
+    public static function author(ModerationDecision $decision): ?Model
     {
         $record = $decision->getRelationValue('moderatable');
         $relation = JevModerationPlugin::get()->getAuthorRelation($decision->moderatable_type);
@@ -456,7 +463,27 @@ class ReviewQueueResource extends Resource
 
         $author = $record->getRelationValue($relation->getRelationName());
 
-        return $author instanceof Model ? DisplayName::of($author) : null;
+        return $author instanceof Model ? $author : null;
+    }
+
+    /**
+     * @internal
+     */
+    public static function authorName(ModerationDecision $decision): ?string
+    {
+        $author = self::author($decision);
+
+        return $author === null ? null : DisplayName::of($author);
+    }
+
+    /**
+     * @internal
+     */
+    public static function authorUrl(ModerationDecision $decision): ?string
+    {
+        $author = self::author($decision);
+
+        return $author === null ? null : AuthorHistory::urlFor($author);
     }
 
     /**
