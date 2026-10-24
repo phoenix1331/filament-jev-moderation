@@ -31,6 +31,7 @@ return [
         ],
     ],
     'actions' => [
+        'view_record' => 'View',
         'approve' => [
             'label' => 'Approve',
             'bulk_label' => 'Approve selected',

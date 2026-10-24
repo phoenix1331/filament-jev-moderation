@@ -9,6 +9,7 @@ use Closure;
 use Filament\Contracts\Plugin;
 use Filament\Facades\Filament;
 use Filament\Panel;
+use Filament\Resources\Resource;
 use Filament\Support\Concerns\EvaluatesClosures;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Contracts\Support\Htmlable;
@@ -68,6 +69,8 @@ class JevModerationPlugin implements Plugin
 
     /** @var array<class-string<Model>, string> */
     protected array $authorRelations = [];
+
+    protected ?Closure $recordUrlUsing = null;
 
     public static function make(): static
     {
@@ -446,6 +449,50 @@ class JevModerationPlugin implements Plugin
         return self::belongsTo(new $class, $this->authorRelations[$class] ?? $this->authorRelation);
     }
 
+    /**
+     * Where a queued record's "View" link goes. The closure can take
+     * `$record` (the moderated model, loaded past the core's visibility
+     * scope) and `$decision` (the queued ModerationDecision), and returns a
+     * URL, or null to hide the link. It replaces the default: the current
+     * panel's resource for the model, at its view page when the user may
+     * view the record, else its edit page when they may edit it.
+     *
+     * A host resource that keeps the core's visibility scope cannot open
+     * content the core hides (every queued record in `pre` mode); point the
+     * link elsewhere here, or drop the scope in that resource for moderators.
+     */
+    public function recordUrlUsing(?Closure $callback): static
+    {
+        $this->recordUrlUsing = $callback;
+
+        return $this;
+    }
+
+    public function getRecordUrl(ModerationDecision $decision): ?string
+    {
+        $record = $decision->getRelationValue('moderatable');
+
+        if (! $record instanceof Model) {
+            return null;
+        }
+
+        if ($this->recordUrlUsing === null) {
+            return self::resourceUrl($record);
+        }
+
+        $url = $this->evaluate(
+            $this->recordUrlUsing,
+            namedInjections: ['record' => $record, 'decision' => $decision],
+            typedInjections: [Model::class => $record, $record::class => $record, ModerationDecision::class => $decision],
+        );
+
+        if ($url === null || is_string($url)) {
+            return $url === '' ? null : $url;
+        }
+
+        throw new InvalidArgumentException('The Jev Moderation record URL must resolve to a string or null, '.get_debug_type($url).' given.');
+    }
+
     public function register(Panel $panel): void
     {
         $panel->resources([ReviewQueueResource::class]);
@@ -460,6 +507,29 @@ class JevModerationPlugin implements Plugin
      * Deny outside local, as Horizon and Pulse do, so moderation tools and
      * the content they show are never accidentally public.
      */
+    /**
+     * The record's page in the current panel's resource for its model: view
+     * when there is one the user may open, else edit.
+     */
+    private static function resourceUrl(Model $record): ?string
+    {
+        $resource = Filament::getCurrentOrDefaultPanel()?->getModelResource($record);
+
+        if (! is_string($resource) || ! is_a($resource, Resource::class, true)) {
+            return null;
+        }
+
+        if ($resource::hasPage('view') && $resource::canView($record)) {
+            return $resource::getUrl('view', ['record' => $record]);
+        }
+
+        if ($resource::hasPage('edit') && $resource::canEdit($record)) {
+            return $resource::getUrl('edit', ['record' => $record]);
+        }
+
+        return null;
+    }
+
     private static function defaultAuthorization(): bool
     {
         return app()->environment('local');

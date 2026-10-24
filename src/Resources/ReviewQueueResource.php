@@ -223,6 +223,7 @@ class ReviewQueueResource extends Resource
                     ->indicateUsing(static fn (array $data): array => self::createdIndicators($data)),
             ])
             ->recordActions([
+                ReviewActions::viewRecord(),
                 ReviewActions::row(ReviewAction::Approve),
                 ReviewActions::row(ReviewAction::Reject),
                 ReviewActions::row(ReviewAction::Reclassify),

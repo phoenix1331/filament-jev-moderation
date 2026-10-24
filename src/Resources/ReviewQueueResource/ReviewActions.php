@@ -33,6 +33,21 @@ final class ReviewActions
     /** Longest note a moderator can leave. */
     public const int NOTE_LENGTH = 2000;
 
+    /**
+     * A link to the record in the host's own resource, through the plugin's
+     * getRecordUrl(); hidden when there is none.
+     */
+    public static function viewRecord(): Action
+    {
+        return Action::make('view_record')
+            ->label(__('filament-jev-moderation::queue.actions.view_record'))
+            ->icon('heroicon-o-arrow-top-right-on-square')
+            ->color('gray')
+            ->url(static fn (ModerationDecision $record): ?string => JevModerationPlugin::get()->getRecordUrl($record))
+            ->openUrlInNewTab()
+            ->visible(static fn (ModerationDecision $record): bool => JevModerationPlugin::get()->getRecordUrl($record) !== null);
+    }
+
     public static function row(ReviewAction $action): Action
     {
         return Action::make($action->value)
